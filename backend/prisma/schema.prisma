@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -10,4 +5,103 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          Role     @default(CUSTOMER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ticketsAsCustomer Ticket[]       @relation("CustomerTickets")
+  ticketsAsAgent    Ticket[]       @relation("AgentTickets")
+  messages          Message[]
+  aiUsages          AiUsage[]
+  refreshTokens     RefreshToken[]
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  title       String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  customerId  String
+  customer    User    @relation("CustomerTickets", fields: [customerId], references: [id])
+
+  agentId     String?
+  agent       User?   @relation("AgentTickets", fields: [agentId], references: [id])
+
+  messages    Message[]
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  content       String
+  isAiGenerated Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id])
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @db.Date
+  count     Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model IpUsage {
+  id          String   @id @default(cuid())
+  ipAddress   String
+  action      String   // e.g. "LOGIN"
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@unique([ipAddress, action, windowStart])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }

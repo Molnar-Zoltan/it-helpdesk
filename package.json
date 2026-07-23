@@ -1,0 +1,30 @@
+{
+  "name": "it-helpdesk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Molnar-Zoltan/it-helpdesk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Molnar-Zoltan/it-helpdesk/issues"
+  },
+  "homepage": "https://github.com/Molnar-Zoltan/it-helpdesk#readme",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ]
+}

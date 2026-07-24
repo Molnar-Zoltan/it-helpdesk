@@ -33,22 +33,26 @@ export class AuthService {
   }
 
   async issueTokens(userId: string, role: string) {
-    const accessToken = this.jwt.sign(
-      { sub: userId, role },
-      { secret: requireEnv('JWT_SECRET'), expiresIn: '15m' },
-    );
+    // Sign the refresh token first — its own payload doesn't need the row id
     const refreshToken = this.jwt.sign(
       { sub: userId },
       { secret: requireEnv('JWT_REFRESH_SECRET'), expiresIn: '7d' },
     );
 
-    await this.prisma.refreshToken.create({
+    // Create the RefreshToken row BEFORE signing the access token,
+    // so we have a row id to embed in the access token payload
+    const refreshTokenRow = await this.prisma.refreshToken.create({
       data: {
         tokenHash: hashToken(refreshToken),
         userId,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
+
+    const accessToken = this.jwt.sign(
+      { sub: userId, role, refreshTokenId: refreshTokenRow.id },
+      { secret: requireEnv('JWT_SECRET'), expiresIn: '15m' },
+    );
 
     return { accessToken, refreshToken };
   }

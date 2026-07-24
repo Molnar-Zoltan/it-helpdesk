@@ -19,6 +19,9 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 - Dockerized local dev environment (Postgres + Redis)
 - Email/password auth with JWT access + refresh tokens (rotation on refresh, revocation on logout)
 - Role-based authorization (`CUSTOMER`, `AGENT`, `ADMIN`)
+- Self-service account management: update name, change password, change email, delete account — all under `/users/me`, documented in [docs/api-endpoints.md](docs/api-endpoints.md)
+- Session-aware token revocation: password and email changes revoke every other active session while preserving the one that made the change, via a `refreshTokenId` claim embedded in the access token
+- GDPR-compliant account deletion: user data is hard-deleted, but their tickets/messages are anonymized rather than destroyed, preserving operational history for the other party (see [docs/schema.md](docs/schema.md#gdpr--account-deletion-behavior))
 
 Not yet built — see [Roadmap](#roadmap).
 

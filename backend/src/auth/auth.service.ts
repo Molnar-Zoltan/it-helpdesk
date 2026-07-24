@@ -8,13 +8,13 @@ import { hashToken, requireEnv } from './token.util';
 export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
-  async register(email: string, password: string, name: string) {
+  async register(email: string, password: string, firstName: string, lastName: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already in use');
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, name },
+      data: { email, passwordHash, firstName, lastName },
     });
     return this.issueTokens(user.id, user.role);
   }

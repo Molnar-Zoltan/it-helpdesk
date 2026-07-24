@@ -45,7 +45,7 @@ erDiagram
         TicketPriority priority
         datetime createdAt
         datetime updatedAt
-        string customerId FK
+        string customerId FK "nullable"
         string agentId FK "nullable"
     }
 
@@ -55,7 +55,7 @@ erDiagram
         boolean isAiGenerated
         datetime createdAt
         string ticketId FK
-        string senderId FK
+        string senderId FK "nullable"
     }
 
     AiUsage {
@@ -122,17 +122,17 @@ Central identity model. A user's `role` determines what they can do; a single `U
 Two named relations (`CustomerTickets`, `AgentTickets`) exist because `Ticket` has two separate foreign keys pointing back to `User` (customer and agent), so Prisma needs the relation name to disambiguate which is which.
 
 ### `Ticket`
-The core support request. Belongs to exactly one customer; may or may not have an agent assigned yet.
+The core support request. Filed by a customer; may or may not have an agent assigned yet. Both `customer` and `agent` are nullable — a ticket survives account deletion of either party (see GDPR note below), it just loses the association.
 
-- `customer` (required) — the `User` who filed the ticket, via `customerId`
-- `agent` (optional) — the `User` currently assigned, via `agentId`; `null` means unassigned
+- `customer` (nullable) — the `User` who filed the ticket, via `customerId`; `null` if that customer's account was later deleted
+- `agent` (nullable) — the `User` currently assigned, via `agentId`; `null` means unassigned, or the assigned agent's account was deleted
 - `messages` — the full conversation thread on this ticket
 
 ### `Message`
-A single entry in a ticket's conversation. Can come from a customer, an agent, or be AI-generated (`isAiGenerated: true`) when the AI chat path (Step 5 of the build plan) creates or replies to a ticket on the user's behalf.
+A single entry in a ticket's conversation. Can come from a customer, an agent, or be AI-generated (`isAiGenerated: true`) when the AI chat path (Step 5 of the build plan) creates or replies to a ticket on the user's behalf. `sender` is nullable so a message survives its author's account deletion; the deletion flow replaces `content` with a placeholder like `"[deleted user]"` before nulling `senderId`.
 
-- `ticket` — the parent ticket, via `ticketId`
-- `sender` — the `User` who sent it, via `senderId`
+- `ticket` — the parent ticket, via `ticketId` (`onDelete: Cascade` — deleting a ticket deletes its messages)
+- `sender` (nullable) — the `User` who sent it, via `senderId`
 
 ### `AiUsage`
 Tracks how many AI chat requests a user has made on a given calendar day, backing the "10 AI requests/day" rate limit. `@@unique([userId, date])` ensures one row per user per day; `count` is incremented on each request.
@@ -141,7 +141,14 @@ Tracks how many AI chat requests a user has made on a given calendar day, backin
 Tracks rate-limited actions by IP address rather than by user — used for things like login-attempt throttling (5 attempts / 15 min) where the actor may not be authenticated yet. `@@unique([ipAddress, action, windowStart])` scopes the counter to a specific action type and time window.
 
 ### `RefreshToken`
-Issued on login/refresh to allow session renewal without re-authenticating. Only the **hash** of the token is stored (`tokenHash`), never the raw token. `revoked` allows explicit invalidation (e.g. on logout or password change) before `expiresAt` naturally elapses.
+Issued on login/refresh to allow session renewal without re-authenticating. Only the **hash** of the token is stored (`tokenHash`), never the raw token. `revoked` allows explicit invalidation (e.g. on logout, password change, or email change) before `expiresAt` naturally elapses. `onDelete: Cascade` on the `user` relation — deleting an account hard-deletes its refresh tokens, since they're pure session data with no anonymization concern.
+
+## GDPR / account deletion behavior
+
+Deleting a `User` does not cascade-delete their tickets or messages — it anonymizes instead:
+1. That user's `Message.content` rows are replaced with a placeholder before deletion.
+2. The `User` row is deleted. `Ticket.customerId`/`agentId` and `Message.senderId` are set to `null` via `onDelete: SetNull`, preserving ticket/message history for the other party (e.g. an agent's resolution record survives a customer deleting their account).
+3. `RefreshToken` rows for that user are hard-deleted via `onDelete: Cascade` — no anonymization concern, they're pure session data.
 
 ## Notes
 

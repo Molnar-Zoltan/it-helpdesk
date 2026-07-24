@@ -54,11 +54,11 @@ model Ticket {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  customerId  String
-  customer    User    @relation("CustomerTickets", fields: [customerId], references: [id])
+  customerId  String?
+  customer    User?   @relation("CustomerTickets", fields: [customerId], references: [id], onDelete: SetNull)
 
   agentId     String?
-  agent       User?   @relation("AgentTickets", fields: [agentId], references: [id])
+  agent       User?   @relation("AgentTickets", fields: [agentId], references: [id], onDelete: SetNull)
 
   messages    Message[]
 }
@@ -70,10 +70,10 @@ model Message {
   createdAt     DateTime @default(now())
 
   ticketId String
-  ticket   Ticket @relation(fields: [ticketId], references: [id])
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
-  senderId String
-  sender   User   @relation(fields: [senderId], references: [id])
+  senderId String?
+  sender   User?   @relation(fields: [senderId], references: [id], onDelete: SetNull)
 }
 
 model AiUsage {
@@ -105,5 +105,5 @@ model RefreshToken {
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

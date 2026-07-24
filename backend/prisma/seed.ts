@@ -9,15 +9,15 @@ async function main() {
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const admin = await prisma.user.create({
-    data: { email: 'admin@helpdesk.dev', passwordHash, name: 'Admin User', role: Role.ADMIN },
+    data: { email: 'admin@helpdesk.dev', passwordHash, firstName: 'Admin', lastName: 'User' },
   });
 
   const agent = await prisma.user.create({
-    data: { email: 'agent@helpdesk.dev', passwordHash, name: 'Agent Smith', role: Role.AGENT },
+    data: { email: 'agent@helpdesk.dev', passwordHash, firstName: 'Agent', lastName: 'Smith', role: Role.AGENT },
   });
 
   const customer = await prisma.user.create({
-    data: { email: 'customer@helpdesk.dev', passwordHash, name: 'Casey Customer', role: Role.CUSTOMER },
+    data: { email: 'customer@helpdesk.dev', passwordHash, firstName: 'Casey', lastName: 'Customer', role: Role.CUSTOMER },
   });
 
   const ticket = await prisma.ticket.create({

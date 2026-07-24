@@ -30,7 +30,8 @@ erDiagram
         string id PK
         string email UK
         string passwordHash
-        string name
+        string firstName
+        string lastName
         Role role
         datetime createdAt
         datetime updatedAt

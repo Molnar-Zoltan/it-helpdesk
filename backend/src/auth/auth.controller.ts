@@ -1,4 +1,3 @@
-// src/auth/auth.controller.ts
 import { Body, Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -11,7 +10,7 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     // TODO Step 6: Turnstile guard here
-    return this.authService.register(dto.email, dto.password, dto.name);
+    return this.authService.register(dto.email, dto.password, dto.firstName, dto.lastName);
   }
 
   @Post('login')

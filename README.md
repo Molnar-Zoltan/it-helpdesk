@@ -16,16 +16,9 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 
 ## Features
 
-- Email/password auth with JWT access + refresh tokens
-- Role-based authorization (`CUSTOMER`, `AGENT`, `ADMIN`)
-- Ticket creation — manual form or AI chat, converging on one shared validation path
-- AI assistant with daily rate limiting (10 requests/day/user, Redis-backed)
-- Login rate limiting — 5 attempts / 15 min, keyed on email + IP (Redis-backed)
-- Registration protected by Cloudflare Turnstile CAPTCHA
-- IP-based rate limiting on auth endpoints (hashed IPs, not stored raw)
-- Ticket lifecycle: `OPEN → IN_PROGRESS → WAITING_FOR_CUSTOMER → RESOLVED → CLOSED`
-- Agent dashboard for triage and assignment
 - Dockerized local dev environment (Postgres + Redis)
+- Email/password auth with JWT access + refresh tokens (rotation on refresh, revocation on logout)
+- Role-based authorization (`CUSTOMER`, `AGENT`, `ADMIN`)
 
 Not yet built — see [Roadmap](#roadmap).
 
@@ -59,9 +52,9 @@ NestJS API (IBM Code Engine)
 
 Manual ticket submissions and AI-chat ticket submissions are two separate entry points that both call the same `TicketsService.create()` — see [docs/architecture.md](docs/architecture.md) for the full flow diagram.
 
-One `RateLimitGuard` (Redis-backed) is reused across three surfaces with different policies: AI chat (10 req/day/user), login (5 attempts/15 min, email+IP), and registration (Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter).
+One `RateLimitGuard` (Redis-backed) will be reused across three surfaces with different policies: AI chat (10 req/day/user), login (5 attempts/15 min, email+IP), and registration (Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter). See [Roadmap](#roadmap) — this guard isn't wired in yet.
 
-Redis is accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
+Redis will be accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
 
 ## Getting started
 
@@ -97,6 +90,7 @@ Each app owns its own env file — see [`backend/.env.example`](backend/.env.exa
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres connection string, used by Prisma's `datasource` config and driver adapter |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | Signing secrets for access and refresh tokens |
 | `AI_DAILY_LIMIT` | Max AI chat messages per user per day (default: 10) |
 | `GEMINI_API_KEY` | Gemini API key for AI ticket extraction |
 | `REDIS_URL` | Redis connection string — `redis://localhost:6379` locally, `rediss://default:<password>@<host>:6379` on Upstash |
@@ -120,8 +114,13 @@ docs/                    Architecture, database, and API notes
 
 Cut from v1 deliberately, to keep the initial build finished and demoable rather than sprawling:
 
-- **Knowledge base / RAG** — `KnowledgeArticle` model already exists in the schema; adding `pgvector` embeddings and a retrieval step to the AI assistant is the next planned feature.
-- **File attachments** on tickets (screenshots, logs)
+- **Manual ticket creation** — `POST /tickets` end-to-end, the first milestone after auth.
+- **AI chat ticket path** — Gemini tool-calling into the same `TicketsService.create()` used by the manual form.
+- **Redis-backed rate limiting** — AI chat (10 req/day/user) and login (5 attempts/15 min, email+IP), plus Cloudflare Turnstile on registration.
+- **Agent dashboard** — queue view, filtering, and ticket assignment.
+- **Ticket lifecycle** — `OPEN → IN_PROGRESS → RESOLVED → CLOSED`, surfaced in the dashboard.
+- **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
+- **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.
 - **Email notifications** on ticket status changes
 - **Admin analytics dashboard** (ticket volume, AI usage trends)
 

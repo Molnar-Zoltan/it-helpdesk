@@ -1,9 +1,15 @@
-import { IsEmail, IsString, Length } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  Length,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 import {
   NoEmoji,
   IsValidName,
   IsStrongPassword,
-  IsNotPwned,
+  IsNotCommonPassword,
 } from '../../common/validators';
 
 export class RegisterDto {
@@ -15,8 +21,14 @@ export class RegisterDto {
   @Length(8, 64)
   @NoEmoji()
   @IsStrongPassword()
-  @IsNotPwned()
+  @IsNotCommonPassword()
   password!: string;
+
+  // Set to true to proceed after being warned the password appeared in a
+  // known data breach (see WeakPasswordException / PwnedPasswordService).
+  @IsOptional()
+  @IsBoolean()
+  acknowledgeWeakPassword?: boolean;
 
   @IsString()
   @Length(1, 50)

@@ -10,7 +10,13 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     // TODO Step 6: Turnstile guard here
-    return this.authService.register(dto.email, dto.password, dto.firstName, dto.lastName);
+    return this.authService.register(
+      dto.email,
+      dto.password,
+      dto.firstName,
+      dto.lastName,
+      dto.acknowledgeWeakPassword,
+    );
   }
 
   @Post('login')

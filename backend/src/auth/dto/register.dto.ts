@@ -1,5 +1,10 @@
-import { IsEmail, IsString, Length, MinLength } from 'class-validator';
-import { NoEmoji, IsValidName } from '../../common/validators';
+import { IsEmail, IsString, Length } from 'class-validator';
+import {
+  NoEmoji,
+  IsValidName,
+  IsStrongPassword,
+  IsNotPwned,
+} from '../../common/validators';
 
 export class RegisterDto {
   @IsEmail({ allow_display_name: false, require_tld: true })
@@ -7,8 +12,10 @@ export class RegisterDto {
   email!: string;
 
   @IsString()
-  @MinLength(8)
+  @Length(8, 64)
   @NoEmoji()
+  @IsStrongPassword()
+  @IsNotPwned()
   password!: string;
 
   @IsString()

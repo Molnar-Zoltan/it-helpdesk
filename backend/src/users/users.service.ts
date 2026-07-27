@@ -9,10 +9,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
+import { PwnedPasswordService } from '../common/services/pwned-password.service';
+import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pwnedPasswords: PwnedPasswordService,
+  ) {}
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -50,7 +55,16 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    if (!valid)
+      throw new UnauthorizedException('Current password is incorrect');
+
+    // Hard blocks (length, complexity, top-1000 list) already ran in the
+    // DTO. This is a soft check: warn and require explicit confirmation,
+    // but never block on the third-party API being unavailable.
+    if (!dto.acknowledgeWeakPassword) {
+      const isBreached = await this.pwnedPasswords.check(dto.newPassword);
+      if (isBreached) throw new WeakPasswordException();
+    }
 
     const newHash = await bcrypt.hash(dto.newPassword, 10);
 
@@ -81,7 +95,8 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    if (!valid)
+      throw new UnauthorizedException('Current password is incorrect');
 
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.newEmail },
@@ -111,7 +126,8 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    if (!valid)
+      throw new UnauthorizedException('Current password is incorrect');
 
     await this.prisma.$transaction([
       // Anonymize this user's messages before the FK is nulled

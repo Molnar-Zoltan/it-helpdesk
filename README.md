@@ -2,7 +2,10 @@
 
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 
-**Live demo:** not yet deployed — tracked in [Roadmap](#roadmap), coming after manual ticket creation (Step 4) and the frontend · **API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) · Demo login: `user@demo.com` / `agent@demo.com` (see [seed data](#seed-data))
+**Live demo:** not yet deployed — tracked in [Roadmap](#roadmap), coming after manual ticket creation and the frontend.  
+**Demo login:** `user@demo.com` / `agent@demo.com` (see [seed data](#seed-data))
+
+**API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) 
 
 <!-- ![screenshot](docs/screenshots/dashboard.png) -->
 

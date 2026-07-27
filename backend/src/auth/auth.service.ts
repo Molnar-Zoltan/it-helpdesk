@@ -1,16 +1,40 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashToken, requireEnv } from './token.util';
+import { PwnedPasswordService } from '../common/services/pwned-password.service';
+import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService, private jwt: JwtService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+    private pwnedPasswords: PwnedPasswordService,
+  ) {}
 
-  async register(email: string, password: string, firstName: string, lastName: string) {
+  async register(
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    acknowledgeWeakPassword = false,
+  ) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already in use');
+
+    // Hard blocks (length, complexity, top-1000 list) already ran in the DTO.
+    // This is a soft check: warn and require explicit confirmation, but
+    // never block on the third-party API being unavailable.
+    if (!acknowledgeWeakPassword) {
+      const isBreached = await this.pwnedPasswords.check(password);
+      if (isBreached) throw new WeakPasswordException();
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.prisma.user.create({
@@ -60,13 +84,17 @@ export class AuthService {
   async refresh(refreshToken: string) {
     let payload: { sub: string };
     try {
-      payload = this.jwt.verify(refreshToken, { secret: requireEnv('JWT_REFRESH_SECRET') });
+      payload = this.jwt.verify(refreshToken, {
+        secret: requireEnv('JWT_REFRESH_SECRET'),
+      });
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
     const tokenHash = hashToken(refreshToken);
-    const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+    });
     if (!stored || stored.revoked || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked');
     }
@@ -77,7 +105,9 @@ export class AuthService {
       data: { revoked: true },
     });
 
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: payload.sub } });
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: payload.sub },
+    });
     return this.issueTokens(user.id, user.role);
   }
 

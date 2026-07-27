@@ -8,3 +8,4 @@ export {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
 } from "./validation/password";
+export { isCommonPassword } from "./validation/common-passwords";

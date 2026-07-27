@@ -1,11 +1,13 @@
-import { IsString, MinLength } from 'class-validator';
-import { NoEmoji } from '../../common/validators';
+import { IsString, Length } from 'class-validator';
+import { NoEmoji, IsStrongPassword, IsNotPwned } from '../../common/validators';
 
 export class ChangePasswordDto {
   @IsString() currentPassword!: string;
 
   @IsString()
-  @MinLength(8)
+  @Length(8, 64)
   @NoEmoji()
+  @IsStrongPassword()
+  @IsNotPwned()
   newPassword!: string;
 }

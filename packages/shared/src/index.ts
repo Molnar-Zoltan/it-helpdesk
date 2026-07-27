@@ -3,3 +3,8 @@ export type TicketStatus =
 
 export { containsEmoji } from "./validation/no-emoji";
 export { isValidName } from "./validation/name";
+export {
+  isStrongPassword,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+} from "./validation/password";

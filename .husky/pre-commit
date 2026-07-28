@@ -1,0 +1,5 @@
+npx lint-staged
+
+# Full type-checking (tsc --noEmit) is deliberately NOT run here — it's too
+# slow for a pre-commit hook and encourages --no-verify workarounds.
+# Belongs in a pre-push hook or CI instead (tracked as a follow-up).

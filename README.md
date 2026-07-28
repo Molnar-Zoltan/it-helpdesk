@@ -89,6 +89,15 @@ npm run dev --workspace=frontend        # http://localhost:3000
 
 `backend/prisma/seed.ts` creates a demo customer, an agent, and a handful of sample tickets in different statuses, so the app isn't empty on first run.
 
+### Git hooks
+
+`npm install` at the root sets up Husky automatically (`prepare` script). Two hooks run locally:
+
+- **`pre-commit`** — runs [lint-staged](https://github.com/okonet/lint-staged), scoped per workspace: ESLint `--fix` for staged `backend/` and `frontend/` files, Prettier `--write` for `packages/shared/`. Auto-fixable issues are silently corrected and re-staged; genuinely unfixable errors block the commit.
+- **`commit-msg`** — runs [commitlint](https://commitlint.js.org/) against the [conventional commit](https://www.conventionalcommits.org/) format already used throughout this repo's history (e.g. `feat(auth): add JWT refresh flow`).
+
+Full type-checking (`tsc --noEmit`) is deliberately **not** run in `pre-commit` — it's too slow for a hook that fires on every commit and tends to push people toward `--no-verify`. It belongs in a `pre-push` hook or CI, neither of which exist yet (tracked as a follow-up).
+
 ## Environment variables
 
 Each app owns its own env file — see [`backend/.env.example`](backend/.env.example) for the full backend list. Notable ones:

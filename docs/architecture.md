@@ -31,7 +31,7 @@ No `tickets/`, `ai/`, or `rate-limit/` modules are implemented yet, so those res
 
 ## Rate limiting
 
-One `RateLimitGuard`, backed by Redis (Upstash REST — no persistent connection needed, which matters since the backend on IBM Code Engine can scale to zero), is reused across three surfaces with different policies:
+One `RateLimitGuard`, backed by Redis (Upstash REST — no persistent connection needed, which matters since the backend on Google Cloud Run can scale to zero), is reused across three surfaces with different policies:
 
 | Surface | Policy | Key |
 |---|---|---|
@@ -65,7 +65,7 @@ Password, email, and deletion all require `currentPassword` re-verification and 
 
 ```
 Next.js  ──────────────►  Vercel
-NestJS API ─────────────►  IBM Code Engine
+NestJS API ─────────────►  Google Cloud Run
 PostgreSQL ─────────────►  Neon
 Redis ──────────────────►  Upstash
 ```

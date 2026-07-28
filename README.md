@@ -36,7 +36,7 @@ Not yet built — see [Roadmap](#roadmap).
 | **Backend** | NestJS, Prisma ORM 7 (driver adapters, Rust-free client), PostgreSQL |
 | **AI** | Gemini API (function calling) |
 | **Infra** | Redis via ioredis (rate limiting), Docker Compose (local dev) |
-| **Deployment** | Vercel (frontend), IBM Code Engine (backend), Neon (Postgres), Upstash (Redis) |
+| **Deployment** | Vercel (frontend), Google Cloud Run (backend), Neon (Postgres), Upstash (Redis) |
 | **Tooling** | npm workspaces monorepo |
 
 ## Architecture
@@ -45,7 +45,7 @@ Not yet built — see [Roadmap](#roadmap).
 Next.js (Vercel)
      │
      ▼
-NestJS API (IBM Code Engine)
+NestJS API (Google Cloud Run)
      ├── auth/         JWT issuance, refresh, guards
      ├── tickets/       manual + AI-created tickets, shared validation
      ├── ai/             Gemini tool-calling, extracts structured tickets

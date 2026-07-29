@@ -13,6 +13,11 @@ COPY backend ./backend
 # Install all dependencies across workspaces
 RUN npm ci
 
+# Build the shared package first — the backend build needs its compiled
+# dist/ output to resolve @helpdesk/shared (package.json points main/types
+# at dist/, not the raw TypeScript source)
+RUN npm run build --workspace=packages/shared
+
 # Generate the Prisma Client inside the backend workspace
 RUN npm run prisma:generate --workspace=backend
 

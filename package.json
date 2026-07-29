@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace frontend\" \"npm run start:dev --workspace backend\"",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=frontend --workspace=backend",
     "test": "npm run test --workspaces",
     "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('husky', {stdio:'inherit'})\""
   },

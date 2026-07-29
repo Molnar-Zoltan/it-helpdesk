@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
-
-const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/';
-const REQUEST_TIMEOUT_MS = 3000;
+import {
+  HIBP_RANGE_URL,
+  HIBP_REQUEST_TIMEOUT_MS,
+} from '../constants/pwned-password.constants';
 
 /**
  * Checks passwords against Have I Been Pwned's Pwned Passwords API using
@@ -29,7 +30,10 @@ export class PwnedPasswordService {
     const suffix = sha1.slice(5);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      HIBP_REQUEST_TIMEOUT_MS,
+    );
 
     try {
       const res = await fetch(`${HIBP_RANGE_URL}${prefix}`, {

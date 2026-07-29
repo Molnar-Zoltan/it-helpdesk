@@ -1,5 +1,5 @@
 export type TicketStatus =
-  "OPEN" | "IN_PROGRESS" | "WAITING_FOR_CUSTOMER" | "RESOLVED" | "CLOSED";
+  "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
 export { containsEmoji } from "./validation/no-emoji";
 export { isValidName } from "./validation/name";

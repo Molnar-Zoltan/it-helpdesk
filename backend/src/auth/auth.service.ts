@@ -9,6 +9,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { hashToken, requireEnv } from './token.util';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
+import { AUTH_ERRORS } from '../common/constants/error-messages.constants';
+import {
+  JWT_ACCESS_EXPIRY,
+  JWT_REFRESH_EXPIRY_SECONDS,
+  REFRESH_TOKEN_TTL_MS,
+  BCRYPT_SALT_ROUNDS,
+} from '../common/constants/auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +33,7 @@ export class AuthService {
     acknowledgeWeakPassword = false,
   ) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new ConflictException('Email already in use');
+    if (existing) throw new ConflictException(AUTH_ERRORS.EMAIL_ALREADY_IN_USE);
 
     // Hard blocks (length, complexity, top-1000 list) already ran in the DTO.
     // This is a soft check: warn and require explicit confirmation, but
@@ -36,7 +43,7 @@ export class AuthService {
       if (isBreached) throw new WeakPasswordException();
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
     const user = await this.prisma.user.create({
       data: { email, passwordHash, firstName, lastName },
     });
@@ -45,9 +52,9 @@ export class AuthService {
 
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
     return user;
   }
 
@@ -60,7 +67,10 @@ export class AuthService {
     // Sign the refresh token first — its own payload doesn't need the row id
     const refreshToken = this.jwt.sign(
       { sub: userId },
-      { secret: requireEnv('JWT_REFRESH_SECRET'), expiresIn: '7d' },
+      {
+        secret: requireEnv('JWT_REFRESH_SECRET'),
+        expiresIn: JWT_REFRESH_EXPIRY_SECONDS,
+      },
     );
 
     // Create the RefreshToken row BEFORE signing the access token,
@@ -69,13 +79,13 @@ export class AuthService {
       data: {
         tokenHash: hashToken(refreshToken),
         userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
       },
     });
 
     const accessToken = this.jwt.sign(
       { sub: userId, role, refreshTokenId: refreshTokenRow.id },
-      { secret: requireEnv('JWT_SECRET'), expiresIn: '15m' },
+      { secret: requireEnv('JWT_SECRET'), expiresIn: JWT_ACCESS_EXPIRY },
     );
 
     return { accessToken, refreshToken };
@@ -88,7 +98,7 @@ export class AuthService {
         secret: requireEnv('JWT_REFRESH_SECRET'),
       });
     } catch {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
     }
 
     const tokenHash = hashToken(refreshToken);
@@ -96,7 +106,9 @@ export class AuthService {
       where: { tokenHash },
     });
     if (!stored || stored.revoked || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token expired or revoked');
+      throw new UnauthorizedException(
+        AUTH_ERRORS.REFRESH_TOKEN_EXPIRED_OR_REVOKED,
+      );
     }
 
     // rotate: revoke old, issue new

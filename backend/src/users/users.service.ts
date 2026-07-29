@@ -11,6 +11,9 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
+import { USERS_ERRORS } from '../common/constants/error-messages.constants';
+import { USERS_SUCCESS } from '../common/constants/success-messages.constants';
+import { BCRYPT_SALT_ROUNDS } from '../common/constants/auth.constants';
 
 @Injectable()
 export class UsersService {
@@ -31,7 +34,7 @@ export class UsersService {
         createdAt: true,
       },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
     return user;
   }
 
@@ -52,11 +55,11 @@ export class UsersService {
     currentRefreshTokenId: string,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid)
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
 
     // Hard blocks (length, complexity, top-1000 list) already ran in the
     // DTO. This is a soft check: warn and require explicit confirmation,
@@ -66,7 +69,7 @@ export class UsersService {
       if (isBreached) throw new WeakPasswordException();
     }
 
-    const newHash = await bcrypt.hash(dto.newPassword, 10);
+    const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -83,7 +86,7 @@ export class UsersService {
       }),
     ]);
 
-    return { message: 'Password updated' };
+    return { message: USERS_SUCCESS.PASSWORD_UPDATED };
   }
 
   async changeEmail(
@@ -92,16 +95,17 @@ export class UsersService {
     currentRefreshTokenId: string,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid)
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
 
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.newEmail },
     });
-    if (existing) throw new ConflictException('Email already in use');
+    if (existing)
+      throw new ConflictException(USERS_ERRORS.EMAIL_ALREADY_IN_USE);
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -118,16 +122,16 @@ export class UsersService {
       }),
     ]);
 
-    return { message: 'Email updated' };
+    return { message: USERS_SUCCESS.EMAIL_UPDATED };
   }
 
   async deleteAccount(userId: string, currentPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid)
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
 
     await this.prisma.$transaction([
       // Anonymize this user's messages before the FK is nulled
@@ -140,6 +144,6 @@ export class UsersService {
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
 
-    return { message: 'Account deleted' };
+    return { message: USERS_SUCCESS.ACCOUNT_DELETED };
   }
 }

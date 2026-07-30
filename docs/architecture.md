@@ -29,6 +29,18 @@ backend/prisma/
 
 No `tickets/`, `ai/`, or `rate-limit/` modules are implemented yet, so those responsibilities are still centralized rather than split into dedicated Nest modules.
 
+## Validation
+
+Field-level rules — length bounds, character sets, password strength, common-password rejection — live in `packages/shared/src/validation/`, not in the backend alone. Each rule is a plain function and/or a small set of named constants (`PASSWORD_MIN_LENGTH`, `NAME_MAX_LENGTH`, `TICKET_TITLE_MAX_LENGTH`, etc.) with no framework dependency, so either side of the monorepo can import them.
+
+The backend wraps these in custom `class-validator` decorators (`backend/src/common/validators/` — `IsStrongPassword`, `IsValidName`, `NoEmoji`) and pairs them with `@Length()`/`@MaxLength()` calls that reference the *same* shared constants, so a length limit can't drift between the decorator and the underlying check.
+
+The frontend doesn't consume these yet (frontend work is Step 5), but the intent is for form inputs to import the same constants directly — e.g. `maxLength={NAME_MAX_LENGTH}` — so client-side hints and server-side enforcement can never fall out of sync.
+
+Email *format* validation is the one deliberate exception: it stays backend-only via `class-validator`'s `IsEmail` (built on `validator.js`) rather than being duplicated as a shared regex, since a hand-rolled pattern would risk drifting from the real check. Only `EMAIL_MAX_LENGTH` (254, per RFC 5321 §4.5.3.1.3) is shared.
+
+See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-field bounds.
+
 ## Rate limiting
 
 One `RateLimitGuard`, backed by Redis (Upstash REST — no persistent connection needed, which matters since the backend on Google Cloud Run can scale to zero), is reused across three surfaces with different policies:

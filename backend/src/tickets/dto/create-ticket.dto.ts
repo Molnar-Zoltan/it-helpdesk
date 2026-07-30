@@ -1,15 +1,21 @@
 import { IsString, IsOptional, IsEnum, Length } from 'class-validator';
 import { TicketPriority } from '../../../generated/prisma/client';
 import { NoEmoji } from '../../common/validators';
+import {
+  TICKET_TITLE_MIN_LENGTH,
+  TICKET_TITLE_MAX_LENGTH,
+  TICKET_DESCRIPTION_MIN_LENGTH,
+  TICKET_DESCRIPTION_MAX_LENGTH,
+} from '@helpdesk/shared';
 
 export class CreateTicketDto {
   @IsString()
-  @Length(3, 150)
+  @Length(TICKET_TITLE_MIN_LENGTH, TICKET_TITLE_MAX_LENGTH)
   @NoEmoji()
   title!: string;
 
   @IsString()
-  @Length(10, 5000)
+  @Length(TICKET_DESCRIPTION_MIN_LENGTH, TICKET_DESCRIPTION_MAX_LENGTH)
   @NoEmoji()
   description!: string;
 

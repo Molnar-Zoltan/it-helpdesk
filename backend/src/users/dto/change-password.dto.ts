@@ -4,12 +4,13 @@ import {
   IsStrongPassword,
   IsNotCommonPassword,
 } from '../../common/validators';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '@helpdesk/shared';
 
 export class ChangePasswordDto {
   @IsString() currentPassword!: string;
 
   @IsString()
-  @Length(8, 64)
+  @Length(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
   @NoEmoji()
   @IsStrongPassword()
   @IsNotCommonPassword()

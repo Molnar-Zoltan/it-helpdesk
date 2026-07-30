@@ -13,7 +13,7 @@ import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
-import type { AuthenticatedRequest } from './types/authenticated-request.type';
+import type { AuthenticatedRequest } from '../common/types/authenticated-request.type';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
@@ -31,17 +31,34 @@ export class UsersController {
   }
 
   @Patch('me/password')
-  changePassword(@Req() req: AuthenticatedRequest, @Body() dto: ChangePasswordDto) {
-    return this.usersService.changePassword(req.user.userId, dto, req.user.refreshTokenId);
+  changePassword(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.usersService.changePassword(
+      req.user.userId,
+      dto,
+      req.user.refreshTokenId,
+    );
   }
 
   @Patch('me/email')
   changeEmail(@Req() req: AuthenticatedRequest, @Body() dto: ChangeEmailDto) {
-    return this.usersService.changeEmail(req.user.userId, dto, req.user.refreshTokenId);
+    return this.usersService.changeEmail(
+      req.user.userId,
+      dto,
+      req.user.refreshTokenId,
+    );
   }
 
   @Delete('me')
-  deleteAccount(@Req() req: AuthenticatedRequest, @Body() dto: DeleteAccountDto) {
-    return this.usersService.deleteAccount(req.user.userId, dto.currentPassword);
+  deleteAccount(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: DeleteAccountDto,
+  ) {
+    return this.usersService.deleteAccount(
+      req.user.userId,
+      dto.currentPassword,
+    );
   }
 }

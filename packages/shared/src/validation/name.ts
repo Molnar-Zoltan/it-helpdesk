@@ -1,4 +1,7 @@
-import { containsEmoji } from "./no-emoji";
+import { containsEmoji } from './no-emoji';
+
+export const NAME_MIN_LENGTH = 1;
+export const NAME_MAX_LENGTH = 50;
 
 /**
  * Allows Unicode letters (any language/script, so "Zoltán", "Müller", "田中" all
@@ -12,7 +15,8 @@ const MAX_CONSECUTIVE_SEPARATORS = /[\s'\u2019-]{2,}/;
 /**
  * Returns true if `value` is a plausible human name: non-empty, only letters,
  * spaces, hyphens, and apostrophes, no emoji, and no runs of repeated
- * separators (e.g. "--", "  ", "''").
+ * separators (e.g. "--", "  ", "''"). Does not check length — pair with
+ * NAME_MIN_LENGTH/NAME_MAX_LENGTH for that.
  */
 export function isValidName(value: string): boolean {
   if (!value || containsEmoji(value)) return false;

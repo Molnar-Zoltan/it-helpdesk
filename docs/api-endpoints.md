@@ -140,3 +140,20 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 | `DELETE /users/me` | Yes | Yes | Yes, all (cascade) |
 
 The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation.
+
+---
+
+## Validation rules
+
+Field-level constraints below are enforced server-side via `class-validator` decorators on the relevant DTOs (`backend/src/**/dto/*.dto.ts`), sourced from shared constants in [`packages/shared/src/validation/`](../packages/shared/src/validation/) — the frontend can import the same constants instead of duplicating or guessing these numbers. See [architecture.md](architecture.md#validation) for how the pattern is wired together.
+
+| Field | Used in | Constraint |
+|---|---|---|
+| `email` | register, login, `PATCH /users/me/email` | ≤254 chars (RFC 5321); format checked via `class-validator`'s `IsEmail` |
+| `password` (new) | register, `PATCH /users/me/password` | 8–64 chars; at least one uppercase letter, one lowercase letter, one digit, one special character; rejects the 1000 most common leaked passwords; no emoji |
+| `password` (login) | login | ≤64 chars only — no minimum length or strength check, since login must accept whatever an existing account was created with |
+| `firstName` / `lastName` | register, `PATCH /users/me` | 1–50 chars; Unicode letters (any script) plus spaces, hyphens, and apostrophes; no emoji, no digits, no repeated separators (e.g. `--`, `''`) |
+| ticket `title` | `POST /tickets` | 3–150 chars; no emoji |
+| ticket `description` | `POST /tickets` | 10–5000 chars; no emoji |
+
+> `POST /tickets` itself isn't documented as its own section yet — tracked as a follow-up alongside `GET /tickets` and `GET /tickets/:id` once Step 4 is fully wrapped up.

@@ -18,3 +18,7 @@ export const USERS_ERRORS = {
   CURRENT_PASSWORD_INCORRECT: 'Current password is incorrect',
   EMAIL_ALREADY_IN_USE: 'Email already in use',
 } as const;
+
+export const TICKETS_ERRORS = {
+  TICKET_NOT_FOUND: 'Ticket not found',
+} as const;

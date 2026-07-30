@@ -2,6 +2,7 @@ import {
   IsEmail,
   IsString,
   Length,
+  MaxLength,
   IsOptional,
   IsBoolean,
 } from 'class-validator';
@@ -11,14 +12,22 @@ import {
   IsStrongPassword,
   IsNotCommonPassword,
 } from '../../common/validators';
+import {
+  EMAIL_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  NAME_MIN_LENGTH,
+  NAME_MAX_LENGTH,
+} from '@helpdesk/shared';
 
 export class RegisterDto {
   @IsEmail({ allow_display_name: false, require_tld: true })
+  @MaxLength(EMAIL_MAX_LENGTH)
   @NoEmoji()
   email!: string;
 
   @IsString()
-  @Length(8, 64)
+  @Length(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
   @NoEmoji()
   @IsStrongPassword()
   @IsNotCommonPassword()
@@ -31,12 +40,12 @@ export class RegisterDto {
   acknowledgeWeakPassword?: boolean;
 
   @IsString()
-  @Length(1, 50)
+  @Length(NAME_MIN_LENGTH, NAME_MAX_LENGTH)
   @IsValidName()
   firstName!: string;
 
   @IsString()
-  @Length(1, 50)
+  @Length(NAME_MIN_LENGTH, NAME_MAX_LENGTH)
   @IsValidName()
   lastName!: string;
 }

@@ -1,6 +1,12 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { EMAIL_MAX_LENGTH, PASSWORD_MAX_LENGTH } from '@helpdesk/shared';
 
 export class LoginDto {
-  @IsEmail() email!: string;
-  @IsString() password!: string;
+  @IsEmail()
+  @MaxLength(EMAIL_MAX_LENGTH)
+  email!: string;
+
+  @IsString()
+  @MaxLength(PASSWORD_MAX_LENGTH)
+  password!: string;
 }

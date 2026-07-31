@@ -5,11 +5,13 @@ import {
   Body,
   Req,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
+import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import type { AuthenticatedRequest } from '../common/types/authenticated-request.type';
 
 @UseGuards(JwtAuthGuard)
@@ -23,8 +25,11 @@ export class TicketsController {
   }
 
   @Get()
-  findAll(@Req() req: AuthenticatedRequest) {
-    return this.ticketsService.findAllForUser(req.user.userId);
+  findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: FindTicketsQueryDto,
+  ) {
+    return this.ticketsService.findAllForUser(req.user.userId, query);
   }
 
   @Get(':id')

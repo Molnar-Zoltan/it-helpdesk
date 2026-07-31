@@ -54,6 +54,13 @@ model Ticket {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  // Populated only when status transitions to CLOSED. closedBy is a plain
+  // string (not a relation) so a close record survives the closer's account
+  // deletion without needing an onDelete behavior of its own.
+  closeReason String?
+  closedAt    DateTime?
+  closedBy    String?
+
   customerId  String?
   customer    User?   @relation("CustomerTickets", fields: [customerId], references: [id], onDelete: SetNull)
 

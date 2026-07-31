@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Ticket } from '../../generated/prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { Prisma, Ticket, TicketStatus } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
+import { CloseTicketDto } from './dto/close-ticket.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import { PaginatedResult } from '../common/types/paginated-result.type';
 
@@ -66,5 +71,32 @@ export class TicketsService {
     }
 
     return ticket;
+  }
+
+  async closeTicket(id: string, customerId: string, dto: CloseTicketDto) {
+    // Same lookup + ownership check as findOneForUser: 404 (not 403) for
+    // both "doesn't exist" and "not yours", so ticket existence isn't leaked.
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket || ticket.customerId !== customerId) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    // Closing only ever moves a ticket toward CLOSED. Already-CLOSED is
+    // rejected rather than silently succeeding, so a second close attempt
+    // (e.g. a double-click) surfaces instead of quietly overwriting the
+    // original close reason/timestamp.
+    if (ticket.status === TicketStatus.CLOSED) {
+      throw new BadRequestException(TICKETS_ERRORS.TICKET_ALREADY_CLOSED);
+    }
+
+    return this.prisma.ticket.update({
+      where: { id },
+      data: {
+        status: TicketStatus.CLOSED,
+        closeReason: dto.reason,
+        closedAt: new Date(),
+        closedBy: customerId,
+      },
+    });
   }
 }

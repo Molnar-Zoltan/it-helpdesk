@@ -14,7 +14,11 @@
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=frontend --workspace=backend",
     "test": "npm run test --workspaces",
     "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('husky', {stdio:'inherit'})\"",
-    "postinstall": "npm run build --workspace=packages/shared"
+    "postinstall": "npm run build --workspace=packages/shared",
+    "prisma:generate": "npm run prisma:generate --workspace=backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=backend",
+    "prisma:seed": "npm run prisma:seed --workspace=backend",
+    "prisma:reset": "npm run prisma:reset --workspace=backend"
   },
   "repository": {
     "type": "git",

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -12,5 +12,10 @@ export class TicketsController {
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateTicketDto) {
     return this.ticketsService.create(req.user.userId, dto);
+  }
+
+  @Get()
+  findAll(@Req() req: AuthenticatedRequest) {
+    return this.ticketsService.findAllForUser(req.user.userId);
   }
 }

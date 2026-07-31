@@ -16,4 +16,11 @@ export class TicketsService {
       },
     });
   }
+
+  async findAllForUser(customerId: string) {
+    return this.prisma.ticket.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

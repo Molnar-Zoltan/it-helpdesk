@@ -14,6 +14,7 @@ import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
+import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import type { AuthenticatedRequest } from '../common/types/authenticated-request.type';
 import { Role } from '../../generated/prisma/client';
@@ -48,6 +49,15 @@ export class TicketsController {
     @Body() dto: CloseTicketDto,
   ) {
     return this.ticketsService.closeTicket(id, req.user.userId, dto);
+  }
+
+  @Patch(':id/reopen')
+  reopen(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ReopenTicketDto,
+  ) {
+    return this.ticketsService.reopenTicket(id, req.user.userId, dto);
   }
 
   @Post(':id/messages')

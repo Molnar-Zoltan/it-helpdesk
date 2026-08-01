@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
+import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import { PaginatedResult } from '../common/types/paginated-result.type';
@@ -102,6 +103,47 @@ export class TicketsService {
         closeReason: dto.reason,
         closedAt: new Date(),
         closedBy: customerId,
+      },
+    });
+  }
+
+  async reopenTicket(id: string, customerId: string, dto: ReopenTicketDto) {
+    // Same lookup + ownership check as closeTicket/findOneForUser: 404
+    // (not 403) for both "doesn't exist" and "not yours".
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket || ticket.customerId !== customerId) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    // Reopen is only valid from CLOSED — symmetric to close only being
+    // valid *toward* CLOSED. Anything else (OPEN, IN_PROGRESS, RESOLVED)
+    // isn't "closed" so there's nothing to reopen.
+    if (ticket.status !== TicketStatus.CLOSED) {
+      throw new BadRequestException(TICKETS_ERRORS.TICKET_NOT_CLOSED);
+    }
+
+    // Always resets to OPEN rather than IN_PROGRESS. Today no ticket can
+    // have an agentId set (assignment doesn't exist until Step 7), so OPEN
+    // is unambiguous. Once assignment ships, a ticket that already had an
+    // agent assigned before it was closed might arguably deserve to come
+    // back as IN_PROGRESS instead — revisit then.
+    //
+    // closeReason/closedAt/closedBy are deliberately left untouched: they
+    // stay as a historical record of the prior close rather than being
+    // cleared, since reopening doesn't erase that it *was* closed once.
+    //
+    // reopenReason/reopenedAt/reopenedBy follow the same single-snapshot
+    // pattern as the close fields — a repeat close/reopen cycle overwrites
+    // the previous reopen record rather than preserving full history. See
+    // the optional TicketStatusChange-table upgrade noted for Step 7/8 if
+    // that turns out to matter in practice.
+    return this.prisma.ticket.update({
+      where: { id },
+      data: {
+        status: TicketStatus.OPEN,
+        reopenReason: dto.reason,
+        reopenedAt: new Date(),
+        reopenedBy: customerId,
       },
     });
   }

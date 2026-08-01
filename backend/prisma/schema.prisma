@@ -61,6 +61,15 @@ model Ticket {
   closedAt    DateTime?
   closedBy    String?
 
+  // Populated only when status transitions back to OPEN from CLOSED. Same
+  // single-snapshot pattern as the close fields above — a repeat
+  // close/reopen cycle overwrites the previous reopen record rather than
+  // preserving history. reopenedBy is a plain string for the same reason
+  // as closedBy: survives the reopener's account deletion.
+  reopenReason String?
+  reopenedAt   DateTime?
+  reopenedBy   String?
+
   customerId  String?
   customer    User?   @relation("CustomerTickets", fields: [customerId], references: [id], onDelete: SetNull)
 

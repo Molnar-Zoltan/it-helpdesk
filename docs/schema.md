@@ -47,6 +47,12 @@ erDiagram
         datetime updatedAt
         string customerId FK "nullable"
         string agentId FK "nullable"
+        string closeReason "nullable"
+        datetime closedAt "nullable"
+        string closedBy "nullable"
+        string reopenReason "nullable"
+        datetime reopenedAt "nullable"
+        string reopenedBy "nullable"
     }
 
     Message {
@@ -127,6 +133,10 @@ The core support request. Filed by a customer; may or may not have an agent assi
 - `customer` (nullable) — the `User` who filed the ticket, via `customerId`; `null` if that customer's account was later deleted
 - `agent` (nullable) — the `User` currently assigned, via `agentId`; `null` means unassigned, or the assigned agent's account was deleted
 - `messages` — the full conversation thread on this ticket
+- `closeReason` / `closedAt` / `closedBy` (all nullable) — set when a customer closes the ticket (`PATCH /tickets/:id/close`); plain string fields rather than a relation, so the record survives the closer's account deletion
+- `reopenReason` / `reopenedAt` / `reopenedBy` (all nullable) — set when a customer reopens a closed ticket (`PATCH /tickets/:id/reopen`); mirrors the close fields exactly, kept as a separate set of columns rather than reusing the close ones
+
+Both the close and reopen fields are single snapshots, not a history — a second close/reopen cycle overwrites the previous values. Upgrading to a dedicated `TicketStatusChange` table (with a row per transition) is a possible future improvement if close/reopen cycling turns out to be frequent enough that losing prior reasons matters; not scheduled.
 
 ### `Message`
 A single entry in a ticket's conversation. Can come from a customer, an agent, or be AI-generated (`isAiGenerated: true`) when the AI chat path (Step 5 of the build plan) creates or replies to a ticket on the user's behalf. `sender` is nullable so a message survives its author's account deletion; the deletion flow replaces `content` with a placeholder like `"[deleted user]"` before nulling `senderId`.

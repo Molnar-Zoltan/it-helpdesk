@@ -25,6 +25,7 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 - Self-service account management: update name, change password, change email, delete account — all under `/users/me`, documented in [docs/api-endpoints.md](docs/api-endpoints.md)
 - Session-aware token revocation: password and email changes revoke every other active session while preserving the one that made the change, via a `refreshTokenId` claim embedded in the access token
 - GDPR-compliant account deletion: user data is hard-deleted, but their tickets/messages are anonymized rather than destroyed, preserving operational history for the other party (see [docs/schema.md](docs/schema.md#gdpr--account-deletion-behavior))
+- Manual ticket creation, end to end: customers can create, list (paginated & sortable), view, close, and reopen their own tickets, and post/read messages on a ticket's thread — documented in [docs/api-endpoints.md](docs/api-endpoints.md#tickets-tickets)
 
 Not yet built — see [Roadmap](#roadmap).
 
@@ -95,7 +96,7 @@ npm run dev --workspace=frontend   # http://localhost:3000
 
 ### Seed data
 
-`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus a sample ticket with one message, so the app isn't empty on first run:
+`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus nine sample tickets (all owned by the demo customer, assigned to the demo agent) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run:
 
 | Role | Email | Password |
 |---|---|---|
@@ -153,20 +154,26 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
    - 3.7 ✅ Pre-commit hooks (Husky + lint-staged + commitlint)
    - 3.8 ✅ Centralized constants/strings
    - 3.9 ✅ Status homepage (replaced Next.js default)
+4. ✅ Manual ticket creation, backend
+   - 4.1.1 ✅ `POST /tickets`
+   - 4.1.2 ✅ `GET /tickets` (list own)
+   - 4.1.3 ✅ `GET /tickets/:id`
+   - 4.1.4 ✅ Pagination and sorting on `GET /tickets`
+   - 4.1.5 ✅ `PATCH /tickets/:id/close` (customer-initiated close)
+   - 4.1.6 ✅ `POST`/`GET /tickets/:id/messages` (ticket comment thread)
+   - 4.1.7 ✅ `PATCH /tickets/:id/reopen` (customer-initiated reopen)
+   - 4.1.8 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md`, `schema.md` updated for all of Step 4
+   - 4.1.9 ✅ Extracted seed/demo data into `packages/shared/src/demo-data/` (fixed IDs, relative `daysAgo` offsets instead of frozen timestamps, plaintext demo password kept separate from backend-only bcrypt hashing) — `backend/prisma/seed.ts` now consumes it instead of owning the data inline. Sets up a single source of truth the frontend's planned MSW offline-mode mocking (Roadmap step 5+) will reuse, so the demo looks the same whether the real backend is reachable or not. Also fixed a bug found in the process: the admin seed account never had `role: ADMIN` set, so it silently seeded as `CUSTOMER`.
 
 **Left**
 
-4. 🔜 Manual ticket creation, backend
-   - 4.1.1 `POST /tickets`
-   - 4.1.2 `GET /tickets` (list own)
-   - 4.1.3 `GET /tickets/:id`
 5. ⬜ Frontend — Next.js UI for auth + ticket creation/viewing
 6. ⬜ Redis login rate limiting (5 attempts / 15 min)
    - 6.1 Backend — `RateLimitGuard` on `/auth/login`
    - 6.2 Frontend — surface lockout state/messaging to the user
 7. ⬜ Cloudflare Turnstile on registration
 8. ⬜ Agent dashboard
-   - 8.1 Backend — queue/filtering/assignment endpoints
+   - 8.1 Backend — queue/filtering/assignment endpoints, agent-driven status transitions beyond the current customer-only close/reopen
    - 8.2 Frontend — dashboard UI
 9. ⬜ AI chat ticket path
    - 9.1 Backend — Gemini tool-calling into `TicketsService.create()`

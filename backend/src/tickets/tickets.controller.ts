@@ -63,4 +63,13 @@ export class TicketsController {
       dto,
     );
   }
+
+  @Get(':id/messages')
+  getMessages(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.ticketsService.getMessages(
+      id,
+      req.user.userId,
+      req.user.role as Role,
+    );
+  }
 }

@@ -112,22 +112,7 @@ export class TicketsService {
     role: Role,
     dto: CreateMessageDto,
   ) {
-    const ticket = await this.prisma.ticket.findUnique({
-      where: { id: ticketId },
-    });
-
-    // Visibility: the owning customer, or any AGENT/ADMIN. Agent-ticket
-    // assignment doesn't exist yet (Step 7), so this deliberately does NOT
-    // scope to a specific assigned agent — any agent can comment on any
-    // ticket for now. Revisit once assignment exists and narrow this to
-    // "assigned agent (or unassigned) + ADMIN", matching how findOneForUser
-    // will likely need to evolve for the agent queue.
-    const isOwningCustomer = ticket?.customerId === userId;
-    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
-
-    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
-      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
-    }
+    await this.assertCanAccessMessages(ticketId, userId, role);
 
     return this.prisma.message.create({
       data: {
@@ -137,5 +122,44 @@ export class TicketsService {
         isAiGenerated: false,
       },
     });
+  }
+
+  async getMessages(ticketId: string, userId: string, role: Role) {
+    await this.assertCanAccessMessages(ticketId, userId, role);
+
+    // Chronological (oldest first) — this is a conversation thread meant to
+    // be read top-to-bottom, unlike the ticket list's newest-first default.
+    return this.prisma.message.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Shared visibility check for both reading and writing a ticket's
+   * message thread: the owning customer, or any AGENT/ADMIN. Agent-ticket
+   * assignment doesn't exist yet (Step 7), so this deliberately does NOT
+   * scope to a specific assigned agent — any agent can read/comment on any
+   * ticket for now. Revisit once assignment exists and narrow this to
+   * "assigned agent (or unassigned) + ADMIN", matching how findOneForUser
+   * will likely need to evolve for the agent queue. Same 404-not-403
+   * pattern as the rest of this service: "doesn't exist" and "not yours"
+   * look identical to the caller.
+   */
+  private async assertCanAccessMessages(
+    ticketId: string,
+    userId: string,
+    role: Role,
+  ) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    const isOwningCustomer = ticket?.customerId === userId;
+    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
+
+    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
   }
 }

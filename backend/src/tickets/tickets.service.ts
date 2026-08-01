@@ -3,11 +3,17 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma, Ticket, TicketStatus } from '../../generated/prisma/client';
+import {
+  Prisma,
+  Ticket,
+  TicketStatus,
+  Role,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import { PaginatedResult } from '../common/types/paginated-result.type';
 
@@ -96,6 +102,39 @@ export class TicketsService {
         closeReason: dto.reason,
         closedAt: new Date(),
         closedBy: customerId,
+      },
+    });
+  }
+
+  async addMessage(
+    ticketId: string,
+    userId: string,
+    role: Role,
+    dto: CreateMessageDto,
+  ) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    // Visibility: the owning customer, or any AGENT/ADMIN. Agent-ticket
+    // assignment doesn't exist yet (Step 7), so this deliberately does NOT
+    // scope to a specific assigned agent — any agent can comment on any
+    // ticket for now. Revisit once assignment exists and narrow this to
+    // "assigned agent (or unassigned) + ADMIN", matching how findOneForUser
+    // will likely need to evolve for the agent queue.
+    const isOwningCustomer = ticket?.customerId === userId;
+    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
+
+    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    return this.prisma.message.create({
+      data: {
+        content: dto.content,
+        ticketId,
+        senderId: userId,
+        isAiGenerated: false,
       },
     });
   }

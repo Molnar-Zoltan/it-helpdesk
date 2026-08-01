@@ -1,8 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Ticket } from '../../generated/prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  Prisma,
+  Ticket,
+  TicketStatus,
+  Role,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
+import { CloseTicketDto } from './dto/close-ticket.dto';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import { PaginatedResult } from '../common/types/paginated-result.type';
 
@@ -66,5 +77,89 @@ export class TicketsService {
     }
 
     return ticket;
+  }
+
+  async closeTicket(id: string, customerId: string, dto: CloseTicketDto) {
+    // Same lookup + ownership check as findOneForUser: 404 (not 403) for
+    // both "doesn't exist" and "not yours", so ticket existence isn't leaked.
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket || ticket.customerId !== customerId) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    // Closing only ever moves a ticket toward CLOSED. Already-CLOSED is
+    // rejected rather than silently succeeding, so a second close attempt
+    // (e.g. a double-click) surfaces instead of quietly overwriting the
+    // original close reason/timestamp.
+    if (ticket.status === TicketStatus.CLOSED) {
+      throw new BadRequestException(TICKETS_ERRORS.TICKET_ALREADY_CLOSED);
+    }
+
+    return this.prisma.ticket.update({
+      where: { id },
+      data: {
+        status: TicketStatus.CLOSED,
+        closeReason: dto.reason,
+        closedAt: new Date(),
+        closedBy: customerId,
+      },
+    });
+  }
+
+  async addMessage(
+    ticketId: string,
+    userId: string,
+    role: Role,
+    dto: CreateMessageDto,
+  ) {
+    await this.assertCanAccessMessages(ticketId, userId, role);
+
+    return this.prisma.message.create({
+      data: {
+        content: dto.content,
+        ticketId,
+        senderId: userId,
+        isAiGenerated: false,
+      },
+    });
+  }
+
+  async getMessages(ticketId: string, userId: string, role: Role) {
+    await this.assertCanAccessMessages(ticketId, userId, role);
+
+    // Chronological (oldest first) — this is a conversation thread meant to
+    // be read top-to-bottom, unlike the ticket list's newest-first default.
+    return this.prisma.message.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Shared visibility check for both reading and writing a ticket's
+   * message thread: the owning customer, or any AGENT/ADMIN. Agent-ticket
+   * assignment doesn't exist yet (Step 7), so this deliberately does NOT
+   * scope to a specific assigned agent — any agent can read/comment on any
+   * ticket for now. Revisit once assignment exists and narrow this to
+   * "assigned agent (or unassigned) + ADMIN", matching how findOneForUser
+   * will likely need to evolve for the agent queue. Same 404-not-403
+   * pattern as the rest of this service: "doesn't exist" and "not yours"
+   * look identical to the caller.
+   */
+  private async assertCanAccessMessages(
+    ticketId: string,
+    userId: string,
+    role: Role,
+  ) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    const isOwningCustomer = ticket?.customerId === userId;
+    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
+
+    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
   }
 }

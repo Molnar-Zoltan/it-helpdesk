@@ -163,6 +163,7 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
    - 4.1.6 ✅ `POST`/`GET /tickets/:id/messages` (ticket comment thread)
    - 4.1.7 ✅ `PATCH /tickets/:id/reopen` (customer-initiated reopen)
    - 4.1.8 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md`, `schema.md` updated for all of Step 4
+   - 4.1.9 ✅ Extracted seed/demo data into `packages/shared/src/demo-data/` (fixed IDs, relative `daysAgo` offsets instead of frozen timestamps, plaintext demo password kept separate from backend-only bcrypt hashing) — `backend/prisma/seed.ts` now consumes it instead of owning the data inline. Sets up a single source of truth the frontend's planned MSW offline-mode mocking (Roadmap step 5+) will reuse, so the demo looks the same whether the real backend is reachable or not. Also fixed a bug found in the process: the admin seed account never had `role: ADMIN` set, so it silently seeded as `CUSTOMER`.
 
 **Left**
 

@@ -4,134 +4,79 @@ import {
   TicketStatus,
   TicketPriority,
 } from '../generated/prisma/client';
-import type { Ticket } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 import { BCRYPT_SALT_ROUNDS } from '../src/common/constants/auth.constants';
+import {
+  DEMO_USERS,
+  DEMO_TICKETS,
+  DEMO_MESSAGES,
+  DEMO_PASSWORD,
+  daysAgo,
+} from '@helpdesk/shared';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+// Seed data itself now lives in packages/shared/src/demo-data/ — the same
+// fixture the frontend's planned MSW offline-mode handlers will serve
+// directly, so the demo looks identical whether the real backend is up or
+// not. This file's job is just to insert it: hash the shared plaintext
+// password, and resolve each record's relative `daysAgo` offsets into real
+// Dates via the shared `daysAgo()` helper.
 async function main() {
-  const passwordHash = await bcrypt.hash('password123', BCRYPT_SALT_ROUNDS);
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, BCRYPT_SALT_ROUNDS);
 
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@helpdesk.dev',
-      passwordHash,
-      firstName: 'Admin',
-      lastName: 'User',
-    },
-  });
-
-  const agent = await prisma.user.create({
-    data: {
-      email: 'agent@helpdesk.dev',
-      passwordHash,
-      firstName: 'Agent',
-      lastName: 'Smith',
-      role: Role.AGENT,
-    },
-  });
-
-  const customer = await prisma.user.create({
-    data: {
-      email: 'customer@helpdesk.dev',
-      passwordHash,
-      firstName: 'Casey',
-      lastName: 'Customer',
-      role: Role.CUSTOMER,
-    },
-  });
-
-  // Spans all four statuses and a mix of priorities so pagination/sorting
-  // (GET /tickets?sortBy=status|priority&...) has something real to sort.
-  const ticketSeeds = [
-    {
-      title: 'Cannot log into VPN',
-      description: 'Getting a timeout error since this morning.',
-      status: TicketStatus.OPEN,
-      priority: TicketPriority.HIGH,
-    },
-    {
-      title: "Laptop won't power on",
-      description:
-        'No response to the power button, tried a different outlet already.',
-      status: TicketStatus.OPEN,
-      priority: TicketPriority.URGENT,
-    },
-    {
-      title: 'Need software license renewal',
-      description:
-        'Design tool license expires end of month, requesting renewal.',
-      status: TicketStatus.OPEN,
-      priority: TicketPriority.LOW,
-    },
-    {
-      title: 'Printer offline on 3rd floor',
-      description:
-        'Shared printer shows offline in every app, restarted twice already.',
-      status: TicketStatus.IN_PROGRESS,
-      priority: TicketPriority.MEDIUM,
-    },
-    {
-      title: 'Email sync failing on mobile',
-      description:
-        'Mobile client stopped syncing new mail as of yesterday afternoon.',
-      status: TicketStatus.IN_PROGRESS,
-      priority: TicketPriority.HIGH,
-    },
-    {
-      title: 'Password reset for shared drive',
-      description:
-        'Locked out of the shared drive after a password policy change.',
-      status: TicketStatus.RESOLVED,
-      priority: TicketPriority.LOW,
-    },
-    {
-      title: 'Monitor flickering intermittently',
-      description:
-        'External monitor flickers a few times an hour, cable already reseated.',
-      status: TicketStatus.RESOLVED,
-      priority: TicketPriority.MEDIUM,
-    },
-    {
-      title: 'Onboarding laptop setup',
-      description:
-        'Initial laptop imaging and account setup for a new starter.',
-      status: TicketStatus.CLOSED,
-      priority: TicketPriority.MEDIUM,
-    },
-    {
-      title: 'Access request for archived project',
-      description:
-        'Requesting read access to an archived project folder for a retro.',
-      status: TicketStatus.CLOSED,
-      priority: TicketPriority.LOW,
-    },
-  ];
-
-  const tickets: Ticket[] = [];
-  for (const seed of ticketSeeds) {
-    const ticket = await prisma.ticket.create({
-      data: { ...seed, customerId: customer.id, agentId: agent.id },
+  for (const user of DEMO_USERS) {
+    await prisma.user.create({
+      data: {
+        id: user.id,
+        email: user.email,
+        passwordHash,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role as Role,
+      },
     });
-    tickets.push(ticket);
   }
 
-  await prisma.message.create({
-    data: {
-      ticketId: tickets[0].id,
-      senderId: customer.id,
-      content: 'Any update on this?',
-    },
-  });
+  for (const ticket of DEMO_TICKETS) {
+    await prisma.ticket.create({
+      data: {
+        id: ticket.id,
+        title: ticket.title,
+        description: ticket.description,
+        status: ticket.status as TicketStatus,
+        priority: ticket.priority as TicketPriority,
+        createdAt: daysAgo(ticket.createdDaysAgo),
+        customerId: ticket.customerId,
+        agentId: ticket.agentId,
+        ...(ticket.closeReason !== undefined && {
+          closeReason: ticket.closeReason,
+          closedAt: daysAgo(ticket.closedDaysAgo as number),
+          closedBy: ticket.closedBy,
+        }),
+      },
+    });
+  }
+
+  for (const message of DEMO_MESSAGES) {
+    await prisma.message.create({
+      data: {
+        id: message.id,
+        ticketId: message.ticketId,
+        senderId: message.senderId,
+        content: message.content,
+        isAiGenerated: message.isAiGenerated,
+        createdAt: daysAgo(message.createdDaysAgo),
+      },
+    });
+  }
 
   console.log({
-    admin: admin.email,
-    agent: agent.email,
-    customer: customer.email,
-    ticketCount: tickets.length,
+    users: DEMO_USERS.length,
+    tickets: DEMO_TICKETS.length,
+    messages: DEMO_MESSAGES.length,
   });
 }
 

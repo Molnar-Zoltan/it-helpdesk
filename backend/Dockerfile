@@ -35,7 +35,7 @@ COPY packages/shared/package*.json ./packages/shared/
 COPY backend/package*.json ./backend/
 
 # Install only production dependencies
-RUN npm ci --omit=dev --workspace=backend
+RUN npm ci --omit=dev --workspace=backend --ignore-scripts
 
 # Copy built files from the compilation stage
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -50,4 +50,4 @@ EXPOSE 8080
 ENV PORT=8080
 
 # Run the NestJS application from the compiled dist directory
-CMD ["node", "backend/dist/main.js"]
+CMD ["node", "backend/dist/src/main.js"]

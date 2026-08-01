@@ -107,15 +107,7 @@ export class TicketsService {
     });
   }
 
-  async reopenTicket(
-    id: string,
-    customerId: string,
-    // dto.reason is validated by ValidationPipe at the controller boundary
-    // but intentionally not persisted anywhere (see comment below on why
-    // no reopenReason/reopenedAt column exists yet).
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    dto: ReopenTicketDto,
-  ) {
+  async reopenTicket(id: string, customerId: string, dto: ReopenTicketDto) {
     // Same lookup + ownership check as closeTicket/findOneForUser: 404
     // (not 403) for both "doesn't exist" and "not yours".
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
@@ -139,10 +131,19 @@ export class TicketsService {
     // closeReason/closedAt/closedBy are deliberately left untouched: they
     // stay as a historical record of the prior close rather than being
     // cleared, since reopening doesn't erase that it *was* closed once.
+    //
+    // reopenReason/reopenedAt/reopenedBy follow the same single-snapshot
+    // pattern as the close fields — a repeat close/reopen cycle overwrites
+    // the previous reopen record rather than preserving full history. See
+    // the optional TicketStatusChange-table upgrade noted for Step 7/8 if
+    // that turns out to matter in practice.
     return this.prisma.ticket.update({
       where: { id },
       data: {
         status: TicketStatus.OPEN,
+        reopenReason: dto.reason,
+        reopenedAt: new Date(),
+        reopenedBy: customerId,
       },
     });
   }

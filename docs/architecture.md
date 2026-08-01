@@ -33,13 +33,26 @@ No `ai/` or `rate-limit/` modules are implemented yet, so those responsibilities
 
 ## Manual ticket creation
 
-`TicketsController`/`TicketsService` cover the customer-facing half of the ticket lifecycle — creation, listing, viewing, closing, reopening, and messaging. See [docs/api-endpoints.md](api-endpoints.md#tickets-tickets) for the full endpoint reference. A few decisions worth calling out:
+`TicketsController`/`TicketsService` cover the customer-facing half of the ticket lifecycle — creation, listing, viewing, closing, reopening, and messaging. See [api-endpoints.md](api-endpoints.md#tickets-tickets) for the full endpoint reference. A few decisions worth calling out:
 
 - **Ownership is enforced by scoping every query to `req.user.userId`, not by checking a fetched record after the fact.** `findAllForUser`/`findOneForUser` filter `where: { customerId }` directly, so there's no window where a ticket belonging to someone else is loaded and then rejected.
 - **404, not 403, on inaccessible tickets.** A customer requesting another customer's ticket, or an unauthenticated/wrong-role request, gets the same "not found" response as a genuinely nonexistent ID — this avoids leaking which ticket IDs exist to someone who isn't the owner.
-- **Pagination and sorting live in one shared, private helper.** `TicketsService.paginateTickets(where, query)` runs the `findMany` + `count` pair in a single Prisma `$transaction`, called today only with `{ customerId }` from `findAllForUser`. It's deliberately structured to accept an arbitrary `where` clause so Step 7's agent queue (unscoped, or filtered by `agentId`/`status`) can reuse it without touching the pagination/sort logic.
-- **Close and reopen are narrow, single-purpose endpoints, not a general status-update route.** `PATCH /tickets/:id/close` only ever moves a ticket toward `CLOSED`; `PATCH /tickets/:id/reopen` only ever moves a `CLOSED` ticket back to `OPEN`. Broader agent-driven status transitions (e.g. `IN_PROGRESS` → `RESOLVED`) are left for Step 7/8, once an agent can actually be assigned to a ticket.
-- **Message visibility is currently role-based, not assignment-based.** `TicketsService.assertCanAccessMessages` allows the owning customer or *any* `AGENT`/`ADMIN` to read and post messages on a ticket, because `agentId` is always `null` until Step 7 introduces assignment. Once assignment exists, this should narrow to "the assigned agent (or an unassigned ticket) plus `ADMIN`" — flagged in code and tracked as a Step 7 follow-up.
+- **Pagination and sorting live in one shared, private helper.** `TicketsService.paginateTickets(where, query)` runs the `findMany` + `count` pair in a single Prisma `$transaction`, called today only with `{ customerId }` from `findAllForUser`. It's deliberately structured to accept an arbitrary `where` clause so Step 8's agent queue (unscoped, or filtered by `agentId`/`status`) can reuse it without touching the pagination/sort logic.
+- **Close and reopen are narrow, single-purpose endpoints, not a general status-update route.** `PATCH /tickets/:id/close` only ever moves a ticket toward `CLOSED`; `PATCH /tickets/:id/reopen` only ever moves a `CLOSED` ticket back to `OPEN`. Broader agent-driven status transitions (e.g. `IN_PROGRESS` → `RESOLVED`) are left for Step 8, once an agent can actually be assigned to a ticket.
+- **Message visibility is currently role-based, not assignment-based.** `TicketsService.assertCanAccessMessages` allows the owning customer or *any* `AGENT`/`ADMIN` to read and post messages on a ticket, because `agentId` is always `null` until Step 8 introduces assignment. Once assignment exists, this should narrow to "the assigned agent (or an unassigned ticket) plus `ADMIN`" — flagged in code and tracked as a Step 8 follow-up.
+- **Close/reopen reasons are single-snapshot fields, not a history table.** `closeReason`/`closedAt`/`closedBy` and `reopenReason`/`reopenedAt`/`reopenedBy` are plain nullable columns on `Ticket`, overwritten on each repeat close/reopen cycle rather than preserving every prior transition. A dedicated `TicketStatusChange` table is a possible future upgrade if that cycling turns out to matter in practice — not scheduled.
+
+## Validation
+
+Field-level rules — length bounds, character sets, password strength, common-password rejection — live in `packages/shared/src/validation/`, not in the backend alone. Each rule is a plain function and/or a small set of named constants (`PASSWORD_MIN_LENGTH`, `NAME_MAX_LENGTH`, `TICKET_TITLE_MAX_LENGTH`, etc.) with no framework dependency, so either side of the monorepo can import them.
+
+The backend wraps these in custom `class-validator` decorators (`backend/src/common/validators/` — `IsStrongPassword`, `IsValidName`, `NoEmoji`) and pairs them with `@Length()`/`@MaxLength()` calls that reference the *same* shared constants, so a length limit can't drift between the decorator and the underlying check.
+
+The frontend doesn't consume these yet (frontend work is Step 5), but the intent is for form inputs to import the same constants directly — e.g. `maxLength={NAME_MAX_LENGTH}` — so client-side hints and server-side enforcement can never fall out of sync.
+
+Email *format* validation is the one deliberate exception: it stays backend-only via `class-validator`'s `IsEmail` (built on `validator.js`) rather than being duplicated as a shared regex, since a hand-rolled pattern would risk drifting from the real check. Only `EMAIL_MAX_LENGTH` (254, per RFC 5321 §4.5.3.1.3) is shared.
+
+See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-field bounds.
 
 ## Rate limiting
 

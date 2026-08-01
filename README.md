@@ -2,8 +2,8 @@
 
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 
-**Live demo:** not yet deployed — tracked in [Roadmap](#roadmap), coming after the frontend.  
-**Demo login:** `user@demo.com` / `agent@demo.com` (see [seed data](#seed-data))
+**Live demo:** https://it-helpdesk.zoltanmolnar.eu/ — deployment planned. The backend API is not deployed yet, and frontend development has not started yet (tracked in [Roadmap](#roadmap), step 10).  
+**Demo login:** `admin@helpdesk.dev` / `agent@helpdesk.dev` / `customer@helpdesk.dev` — password `password123` for all three (see [seed data](#seed-data))
 
 **API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) 
 
@@ -48,10 +48,10 @@ Next.js (Vercel)
      ▼
 NestJS API (Google Cloud Run)
      ├── auth/         JWT issuance, refresh, guards
-     ├── users/         self-service account management
-     ├── tickets/       manual ticket CRUD + messages, shared validation
+     ├── tickets/       manual + AI-created tickets, shared validation
      ├── ai/             Gemini tool-calling, extracts structured tickets
-     └── rate-limit/    Redis-backed guard, reused by ai/ and auth/
+     ├── rate-limit/    Redis-backed guard, reused by ai/ and auth/
+     └── users/
      │
      ├──► PostgreSQL (Neon)
      └──► Redis (Upstash)
@@ -79,16 +79,30 @@ npm run prisma:migrate --workspace=backend
 npm run prisma:seed --workspace=backend
 ```
 
-Then, in two separate terminals:
+Then start both apps at once:
 
 ```bash
-npm run start:dev --workspace=backend   # http://localhost:3001
-npm run dev --workspace=frontend        # http://localhost:3000
+npm run dev   # runs frontend + backend concurrently via `concurrently`
+              # frontend → http://localhost:3000
+              # backend  → http://localhost:3001
+```
+
+Or run them separately, one per terminal — the two commands are identical apart from the `--workspace` flag:
+
+```bash
+npm run dev --workspace=backend    # http://localhost:3001
+npm run dev --workspace=frontend   # http://localhost:3000
 ```
 
 ### Seed data
 
-`backend/prisma/seed.ts` creates a demo customer, an agent, and nine sample tickets spanning every `TicketStatus` and mixed priorities, so the app isn't empty on first run.
+`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus nine sample tickets (all owned by the demo customer, assigned to the demo agent) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@helpdesk.dev` | `password123` |
+| Agent | `agent@helpdesk.dev` | `password123` |
+| Customer | `customer@helpdesk.dev` | `password123` |
 
 ### Git hooks
 
@@ -128,11 +142,46 @@ docs/                    Architecture, database, and API notes
 
 ## Roadmap
 
-Cut from v1 deliberately, to keep the initial build finished and demoable rather than sprawling:
+Built as a vertical slice per step (DB → API → UI), backend before frontend, so each step ships something demoable rather than sprawling.
 
-- **AI chat ticket path** — Gemini tool-calling into the same `TicketsService.create()` used by the manual form.
-- **Redis-backed rate limiting** — AI chat (10 req/day/user) and login (5 attempts/15 min, email+IP), plus Cloudflare Turnstile on registration.
-- **Agent dashboard** — queue view, filtering, and ticket assignment; agent-driven status transitions beyond the current customer-only close/reopen.
+**Done**
+
+1. ✅ Monorepo scaffold (frontend/backend/packages/shared, docker-compose Postgres + Redis)
+2. ✅ Prisma schema (User, Ticket, Message, AiUsage, IpUsage, RefreshToken) + migration + seed
+3. ✅ Auth backend (register, login, JWT, refresh-with-rotation, logout-revocation)
+   - 3.5 ✅ Self-service account management (`/users/me` — profile, password, email, delete)
+   - 3.6 ✅ Validation hardening (emoji blocking, name/email format, password strength, HIBP check)
+   - 3.7 ✅ Pre-commit hooks (Husky + lint-staged + commitlint)
+   - 3.8 ✅ Centralized constants/strings
+   - 3.9 ✅ Status homepage (replaced Next.js default)
+4. ✅ Manual ticket creation, backend
+   - 4.1.1 ✅ `POST /tickets`
+   - 4.1.2 ✅ `GET /tickets` (list own)
+   - 4.1.3 ✅ `GET /tickets/:id`
+   - 4.1.4 ✅ Pagination and sorting on `GET /tickets`
+   - 4.1.5 ✅ `PATCH /tickets/:id/close` (customer-initiated close)
+   - 4.1.6 ✅ `POST`/`GET /tickets/:id/messages` (ticket comment thread)
+   - 4.1.7 ✅ `PATCH /tickets/:id/reopen` (customer-initiated reopen)
+   - 4.1.8 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md`, `schema.md` updated for all of Step 4
+
+**Left**
+
+5. ⬜ Frontend — Next.js UI for auth + ticket creation/viewing
+6. ⬜ Redis login rate limiting (5 attempts / 15 min)
+   - 6.1 Backend — `RateLimitGuard` on `/auth/login`
+   - 6.2 Frontend — surface lockout state/messaging to the user
+7. ⬜ Cloudflare Turnstile on registration
+8. ⬜ Agent dashboard
+   - 8.1 Backend — queue/filtering/assignment endpoints, agent-driven status transitions beyond the current customer-only close/reopen
+   - 8.2 Frontend — dashboard UI
+9. ⬜ AI chat ticket path
+   - 9.1 Backend — Gemini tool-calling into `TicketsService.create()`
+   - 9.2 Frontend — chat UI
+   - 9.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
+10. ⬜ Deploy (Google Cloud Run backend, Vercel frontend, Neon/Upstash) + README polish
+
+Also on the list, not yet slotted into a numbered step:
+
 - **Ticket lifecycle** — `OPEN → IN_PROGRESS → RESOLVED → CLOSED`, surfaced in the dashboard.
 - **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
 - **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.

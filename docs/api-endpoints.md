@@ -127,10 +127,10 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 
 ## Tickets (`/tickets`)
 
-Manual ticket creation and self-service ticket management for customers. All routes require `Authorization: Bearer <accessToken>`. Unless noted otherwise, a ticket is only visible to the customer who filed it — any other user (including an agent, until Step 7's assignment model exists) gets a `404`, not a `403`, so requests can't be used to probe which ticket IDs exist.
+Manual ticket creation and self-service ticket management for customers. All routes require `Authorization: Bearer <accessToken>`. Unless noted otherwise, a ticket is only visible to the customer who filed it — any other user (including an agent, until Step 8's assignment model exists) gets a `404`, not a `403`, so requests can't be used to probe which ticket IDs exist.
 
 ### `POST /tickets`
-Creates a new ticket. `customerId` is always derived from the access token — it can never be set via the request body. New tickets always start at `status: OPEN` with no `agentId` (assignment doesn't exist until Step 7).
+Creates a new ticket. `customerId` is always derived from the access token — it can never be set via the request body. New tickets always start at `status: OPEN` with no `agentId` (assignment doesn't exist until Step 8).
 
 **Body**
 ```json
@@ -182,7 +182,7 @@ Returns a single ticket owned by the authenticated user.
 **Errors**: `404` if the ticket doesn't exist or isn't owned by the requester.
 
 ### `PATCH /tickets/:id/close`
-Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — customers can close a ticket at any of those stages, not just once it's `RESOLVED`. Always moves the ticket to `CLOSED`. This is a narrow, single-purpose endpoint, not a general status-update route; agent-driven status transitions are Step 7/8 territory.
+Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — customers can close a ticket at any of those stages, not just once it's `RESOLVED`. Always moves the ticket to `CLOSED`. This is a narrow, single-purpose endpoint, not a general status-update route; agent-driven status transitions are Step 8 territory.
 
 **Body**
 ```json
@@ -192,7 +192,7 @@ Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — cu
 **Errors**: `400` `TICKET_ALREADY_CLOSED` if the ticket is already `CLOSED`, or validation errors on `reason` (missing, too short/long, or contains emoji); `404` if the ticket doesn't exist or isn't owned by the requester.
 
 ### `PATCH /tickets/:id/reopen`
-Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always resets the ticket to `OPEN` (a ticket that already had an agent assigned before closing may arguably deserve `IN_PROGRESS` instead — revisit once Step 7 assignment exists). The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
+Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always resets the ticket to `OPEN` (a ticket that already had an agent assigned before closing may arguably deserve `IN_PROGRESS` instead — revisit once Step 8 assignment exists). The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
 
 **Body**
 ```json
@@ -202,7 +202,7 @@ Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always
 **Errors**: `400` `TICKET_NOT_CLOSED` if the ticket isn't currently `CLOSED`, or validation errors on `reason`; `404` if the ticket doesn't exist or isn't owned by the requester.
 
 ### `POST /tickets/:id/messages`
-Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visible to the ticket's owning customer, or to any user with role `AGENT`/`ADMIN` (not yet scoped to a specific *assigned* agent, since assignment doesn't exist until Step 7). `isAiGenerated` defaults to `false`; the AI chat path (Step 5) will write its own `Message` rows separately.
+Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visible to the ticket's owning customer, or to any user with role `AGENT`/`ADMIN` (not yet scoped to a specific *assigned* agent, since assignment doesn't exist until Step 8). `isAiGenerated` defaults to `false`; the AI chat path (Step 9) will write its own `Message` rows separately.
 
 **Body**
 ```json
@@ -258,3 +258,21 @@ The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` �
 | `GET /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
 
 Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.
+
+---
+
+## Validation rules
+
+Field-level constraints below are enforced server-side via `class-validator` decorators on the relevant DTOs (`backend/src/**/dto/*.dto.ts`), sourced from shared constants in [`packages/shared/src/validation/`](../packages/shared/src/validation/) — the frontend can import the same constants instead of duplicating or guessing these numbers. See [architecture.md](architecture.md#validation) for how the pattern is wired together.
+
+| Field | Used in | Constraint |
+|---|---|---|
+| `email` | register, login, `PATCH /users/me/email` | ≤254 chars (RFC 5321); format checked via `class-validator`'s `IsEmail` |
+| `password` (new) | register, `PATCH /users/me/password` | 8–64 chars; at least one uppercase letter, one lowercase letter, one digit, one special character; rejects the 1000 most common leaked passwords; no emoji |
+| `password` (login) | login | ≤64 chars only — no minimum length or strength check, since login must accept whatever an existing account was created with |
+| `firstName` / `lastName` | register, `PATCH /users/me` | 1–50 chars; Unicode letters (any script) plus spaces, hyphens, and apostrophes; no emoji, no digits, no repeated separators (e.g. `--`, `''`) |
+| ticket `title` | `POST /tickets` | 3–150 chars; no emoji |
+| ticket `description` | `POST /tickets` | 10–5000 chars; no emoji |
+| ticket close `reason` | `PATCH /tickets/:id/close` | 3–1000 chars, required; no emoji |
+| ticket reopen `reason` | `PATCH /tickets/:id/reopen` | 3–1000 chars, required; no emoji (separate constants from close's, deliberately decoupled even though currently identical) |
+| message `content` | `POST /tickets/:id/messages` | 1–5000 chars; no emoji |

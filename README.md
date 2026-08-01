@@ -2,8 +2,8 @@
 
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 
-**Live demo:** https://it-helpdesk.zoltanmolnar.eu/ — deployment planned. The backend API is not deployed yet, and frontend development has not started yet (tracked in [Roadmap](#roadmap), step 10).  
-**Demo login:** `admin@helpdesk.dev` / `agent@helpdesk.dev` / `customer@helpdesk.dev` — password `password123` for all three (see [seed data](#seed-data))
+**Live demo:** not yet deployed — tracked in [Roadmap](#roadmap), coming after the frontend.  
+**Demo login:** `user@demo.com` / `agent@demo.com` (see [seed data](#seed-data))
 
 **API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) 
 
@@ -25,6 +25,7 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 - Self-service account management: update name, change password, change email, delete account — all under `/users/me`, documented in [docs/api-endpoints.md](docs/api-endpoints.md)
 - Session-aware token revocation: password and email changes revoke every other active session while preserving the one that made the change, via a `refreshTokenId` claim embedded in the access token
 - GDPR-compliant account deletion: user data is hard-deleted, but their tickets/messages are anonymized rather than destroyed, preserving operational history for the other party (see [docs/schema.md](docs/schema.md#gdpr--account-deletion-behavior))
+- Manual ticket creation, end to end: customers can create, list (paginated & sortable), view, close, and reopen their own tickets, and post/read messages on a ticket's thread — documented in [docs/api-endpoints.md](docs/api-endpoints.md#tickets-tickets)
 
 Not yet built — see [Roadmap](#roadmap).
 
@@ -47,10 +48,10 @@ Next.js (Vercel)
      ▼
 NestJS API (Google Cloud Run)
      ├── auth/         JWT issuance, refresh, guards
-     ├── tickets/       manual + AI-created tickets, shared validation
+     ├── users/         self-service account management
+     ├── tickets/       manual ticket CRUD + messages, shared validation
      ├── ai/             Gemini tool-calling, extracts structured tickets
-     ├── rate-limit/    Redis-backed guard, reused by ai/ and auth/
-     └── users/
+     └── rate-limit/    Redis-backed guard, reused by ai/ and auth/
      │
      ├──► PostgreSQL (Neon)
      └──► Redis (Upstash)
@@ -78,30 +79,16 @@ npm run prisma:migrate --workspace=backend
 npm run prisma:seed --workspace=backend
 ```
 
-Then start both apps at once:
+Then, in two separate terminals:
 
 ```bash
-npm run dev   # runs frontend + backend concurrently via `concurrently`
-              # frontend → http://localhost:3000
-              # backend  → http://localhost:3001
-```
-
-Or run them separately, one per terminal — the two commands are identical apart from the `--workspace` flag:
-
-```bash
-npm run dev --workspace=backend    # http://localhost:3001
-npm run dev --workspace=frontend   # http://localhost:3000
+npm run start:dev --workspace=backend   # http://localhost:3001
+npm run dev --workspace=frontend        # http://localhost:3000
 ```
 
 ### Seed data
 
-`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus a sample ticket with one message, so the app isn't empty on first run:
-
-| Role | Email | Password |
-|---|---|---|
-| Admin | `admin@helpdesk.dev` | `password123` |
-| Agent | `agent@helpdesk.dev` | `password123` |
-| Customer | `customer@helpdesk.dev` | `password123` |
+`backend/prisma/seed.ts` creates a demo customer, an agent, and nine sample tickets spanning every `TicketStatus` and mixed priorities, so the app isn't empty on first run.
 
 ### Git hooks
 
@@ -141,41 +128,11 @@ docs/                    Architecture, database, and API notes
 
 ## Roadmap
 
-Built as a vertical slice per step (DB → API → UI), backend before frontend, so each step ships something demoable rather than sprawling.
+Cut from v1 deliberately, to keep the initial build finished and demoable rather than sprawling:
 
-**Done**
-
-1. ✅ Monorepo scaffold (frontend/backend/packages/shared, docker-compose Postgres + Redis)
-2. ✅ Prisma schema (User, Ticket, Message, AiUsage, IpUsage, RefreshToken) + migration + seed
-3. ✅ Auth backend (register, login, JWT, refresh-with-rotation, logout-revocation)
-   - 3.5 ✅ Self-service account management (`/users/me` — profile, password, email, delete)
-   - 3.6 ✅ Validation hardening (emoji blocking, name/email format, password strength, HIBP check)
-   - 3.7 ✅ Pre-commit hooks (Husky + lint-staged + commitlint)
-   - 3.8 ✅ Centralized constants/strings
-   - 3.9 ✅ Status homepage (replaced Next.js default)
-
-**Left**
-
-4. 🔜 Manual ticket creation, backend
-   - 4.1.1 `POST /tickets`
-   - 4.1.2 `GET /tickets` (list own)
-   - 4.1.3 `GET /tickets/:id`
-5. ⬜ Frontend — Next.js UI for auth + ticket creation/viewing
-6. ⬜ Redis login rate limiting (5 attempts / 15 min)
-   - 6.1 Backend — `RateLimitGuard` on `/auth/login`
-   - 6.2 Frontend — surface lockout state/messaging to the user
-7. ⬜ Cloudflare Turnstile on registration
-8. ⬜ Agent dashboard
-   - 8.1 Backend — queue/filtering/assignment endpoints
-   - 8.2 Frontend — dashboard UI
-9. ⬜ AI chat ticket path
-   - 9.1 Backend — Gemini tool-calling into `TicketsService.create()`
-   - 9.2 Frontend — chat UI
-   - 9.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
-10. ⬜ Deploy (Google Cloud Run backend, Vercel frontend, Neon/Upstash) + README polish
-
-Also on the list, not yet slotted into a numbered step:
-
+- **AI chat ticket path** — Gemini tool-calling into the same `TicketsService.create()` used by the manual form.
+- **Redis-backed rate limiting** — AI chat (10 req/day/user) and login (5 attempts/15 min, email+IP), plus Cloudflare Turnstile on registration.
+- **Agent dashboard** — queue view, filtering, and ticket assignment; agent-driven status transitions beyond the current customer-only close/reopen.
 - **Ticket lifecycle** — `OPEN → IN_PROGRESS → RESOLVED → CLOSED`, surfaced in the dashboard.
 - **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
 - **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.

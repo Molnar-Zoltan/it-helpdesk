@@ -125,6 +125,110 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 
 ---
 
+## Tickets (`/tickets`)
+
+Manual ticket creation and self-service ticket management for customers. All routes require `Authorization: Bearer <accessToken>`. Unless noted otherwise, a ticket is only visible to the customer who filed it — any other user (including an agent, until Step 7's assignment model exists) gets a `404`, not a `403`, so requests can't be used to probe which ticket IDs exist.
+
+### `POST /tickets`
+Creates a new ticket. `customerId` is always derived from the access token — it can never be set via the request body. New tickets always start at `status: OPEN` with no `agentId` (assignment doesn't exist until Step 7).
+
+**Body**
+```json
+{ "title": "string (3-150 chars)", "description": "string (10-5000 chars)", "priority": "LOW | MEDIUM | HIGH | URGENT (optional, default MEDIUM)" }
+```
+**Response** `201`
+```json
+{
+  "id": "string",
+  "title": "string",
+  "description": "string",
+  "status": "OPEN",
+  "priority": "LOW | MEDIUM | HIGH | URGENT",
+  "createdAt": "ISO 8601 datetime",
+  "updatedAt": "ISO 8601 datetime",
+  "customerId": "string",
+  "agentId": null
+}
+```
+**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content).
+
+### `GET /tickets`
+Lists the authenticated user's own tickets, paginated and sortable.
+
+**Query params**
+| Param | Default | Notes |
+|---|---|---|
+| `page` | `1` | 1-indexed |
+| `limit` | `20` | capped at `100` |
+| `sortBy` | `createdAt` | one of `createdAt`, `updatedAt`, `priority`, `status` |
+| `sortOrder` | `desc` | `asc` or `desc` |
+
+**Response** `200`
+```json
+{
+  "data": [ /* array of Ticket objects, same shape as POST /tickets response */ ],
+  "page": 1,
+  "limit": 20,
+  "total": 9,
+  "totalPages": 1
+}
+```
+**Errors**: `400` if `page`/`limit` are out of range or `sortBy`/`sortOrder` aren't recognized values.
+
+### `GET /tickets/:id`
+Returns a single ticket owned by the authenticated user.
+
+**Response** `200`: a single Ticket object, same shape as `POST /tickets`.
+**Errors**: `404` if the ticket doesn't exist or isn't owned by the requester.
+
+### `PATCH /tickets/:id/close`
+Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — customers can close a ticket at any of those stages, not just once it's `RESOLVED`. Always moves the ticket to `CLOSED`. This is a narrow, single-purpose endpoint, not a general status-update route; agent-driven status transitions are Step 7/8 territory.
+
+**Body**
+```json
+{ "reason": "string (3-1000 chars)" }
+```
+**Response** `200`: the updated Ticket object, now including `closeReason`, `closedAt`, `closedBy`.
+**Errors**: `400` `TICKET_ALREADY_CLOSED` if the ticket is already `CLOSED`, or validation errors on `reason` (missing, too short/long, or contains emoji); `404` if the ticket doesn't exist or isn't owned by the requester.
+
+### `PATCH /tickets/:id/reopen`
+Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always resets the ticket to `OPEN` (a ticket that already had an agent assigned before closing may arguably deserve `IN_PROGRESS` instead — revisit once Step 7 assignment exists). The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
+
+**Body**
+```json
+{ "reason": "string (3-1000 chars)" }
+```
+**Response** `200`: the updated Ticket object, now including `reopenReason`, `reopenedAt`, `reopenedBy` (separate fields from the close ones, in case a ticket cycles through close/reopen more than once — the current schema keeps a single snapshot of each, not full history).
+**Errors**: `400` `TICKET_NOT_CLOSED` if the ticket isn't currently `CLOSED`, or validation errors on `reason`; `404` if the ticket doesn't exist or isn't owned by the requester.
+
+### `POST /tickets/:id/messages`
+Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visible to the ticket's owning customer, or to any user with role `AGENT`/`ADMIN` (not yet scoped to a specific *assigned* agent, since assignment doesn't exist until Step 7). `isAiGenerated` defaults to `false`; the AI chat path (Step 5) will write its own `Message` rows separately.
+
+**Body**
+```json
+{ "content": "string (1-5000 chars)" }
+```
+**Response** `201`
+```json
+{
+  "id": "string",
+  "content": "string",
+  "isAiGenerated": false,
+  "createdAt": "ISO 8601 datetime",
+  "ticketId": "string",
+  "senderId": "string"
+}
+```
+**Errors**: `400` on validation failure (missing/oversized/emoji content); `404` if the ticket doesn't exist or the requester can't access it.
+
+### `GET /tickets/:id/messages`
+Returns the full message thread for a ticket, ordered oldest-first (`createdAt` ascending — the reverse of `GET /tickets`' newest-first default, since a conversation reads chronologically). Same visibility rule as `POST /tickets/:id/messages`.
+
+**Response** `200`: array of Message objects, same shape as the `POST /tickets/:id/messages` response.
+**Errors**: `404` if the ticket doesn't exist or the requester can't access it.
+
+---
+
 ## Auth model summary
 
 | Endpoint | Auth required | `currentPassword` required | Revokes other sessions |
@@ -141,19 +245,16 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 
 The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation.
 
----
+## Ticket endpoint access summary
 
-## Validation rules
-
-Field-level constraints below are enforced server-side via `class-validator` decorators on the relevant DTOs (`backend/src/**/dto/*.dto.ts`), sourced from shared constants in [`packages/shared/src/validation/`](../packages/shared/src/validation/) — the frontend can import the same constants instead of duplicating or guessing these numbers. See [architecture.md](architecture.md#validation) for how the pattern is wired together.
-
-| Field | Used in | Constraint |
+| Endpoint | Auth required | Visible to |
 |---|---|---|
-| `email` | register, login, `PATCH /users/me/email` | ≤254 chars (RFC 5321); format checked via `class-validator`'s `IsEmail` |
-| `password` (new) | register, `PATCH /users/me/password` | 8–64 chars; at least one uppercase letter, one lowercase letter, one digit, one special character; rejects the 1000 most common leaked passwords; no emoji |
-| `password` (login) | login | ≤64 chars only — no minimum length or strength check, since login must accept whatever an existing account was created with |
-| `firstName` / `lastName` | register, `PATCH /users/me` | 1–50 chars; Unicode letters (any script) plus spaces, hyphens, and apostrophes; no emoji, no digits, no repeated separators (e.g. `--`, `''`) |
-| ticket `title` | `POST /tickets` | 3–150 chars; no emoji |
-| ticket `description` | `POST /tickets` | 10–5000 chars; no emoji |
+| `POST /tickets` | Yes | n/a — creates a ticket owned by the caller |
+| `GET /tickets` | Yes | Caller's own tickets only |
+| `GET /tickets/:id` | Yes | Owning customer only (`404` otherwise) |
+| `PATCH /tickets/:id/close` | Yes | Owning customer only (`404` otherwise) |
+| `PATCH /tickets/:id/reopen` | Yes | Owning customer only (`404` otherwise) |
+| `POST /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
+| `GET /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
 
-> `POST /tickets` itself isn't documented as its own section yet — tracked as a follow-up alongside `GET /tickets` and `GET /tickets/:id` once Step 4 is fully wrapped up.
+Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.

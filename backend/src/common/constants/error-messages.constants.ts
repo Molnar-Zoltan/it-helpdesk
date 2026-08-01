@@ -22,4 +22,5 @@ export const USERS_ERRORS = {
 export const TICKETS_ERRORS = {
   TICKET_NOT_FOUND: 'Ticket not found',
   TICKET_ALREADY_CLOSED: 'Ticket is already closed',
+  TICKET_NOT_CLOSED: 'Ticket is not closed',
 } as const;

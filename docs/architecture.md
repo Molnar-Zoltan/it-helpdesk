@@ -126,8 +126,32 @@ frontend/lib/
 - **`ACCESS_TOKEN_TTL_MS`/`REFRESH_TOKEN_TTL_MS` moved from backend-only constants into `@helpdesk/shared`.** Cookie `maxAge` mirrors real token lifetime; keeping the numbers backend-only would have meant duplicating them in the frontend with the same drift risk this project already hit once with `REFRESH_TOKEN_TTL_MS`. The backend remains authoritative for actual authorization — every request is still verified against the JWT signature/exp server-side regardless of what a cookie's `maxAge` says.
 - **Auth state has no separate context or store.** `useProfile()` (`lib/queries/use-profile.ts`) wraps `GET /users/me` in a TanStack Query hook with `retry: false`; its three states *are* the auth state — `isLoading` (unknown yet), `isError` (logged out — the proxy's own refresh-and-retry already failed before this `401` surfaced), `data` (the current user). `useLogin`/`useRegister` invalidate this query on success; `useLogout` calls `queryClient.clear()` to drop *all* cached data, not just the profile, so a logged-out session can't hold onto another user's data in memory.
 - **`apiClient` (browser) vs `authClient` (browser) vs `backendFetch` (server-only).** `apiClient.get/post/patch/delete` always target `/api/backend/*` and are what every future query/mutation hook (tickets, account pages) will use. `authClient` is a small separate wrapper for the three `/api/auth/*` actions, since those aren't authenticated pass-throughs — the route handlers do real work (setting/clearing cookies) rather than just forwarding. `backendFetch` is the one place that actually knows `BACKEND_API_URL`; it only runs inside route handlers, marked with the `server-only` package so an accidental client-side import fails at build time instead of leaking the backend origin into a browser bundle.
-- **Nest's default error shape is normalized once, not per call site.** `{ statusCode, message, error }` — where `message` is a `string[]` for class-validator failures — becomes a single `ApiError` with a joined string message and an optional `code` (Nest's `error` field). `code` matters for at least one real case already: `WeakPasswordException` (422, `WEAK_PASSWORD_WARNING`) is a *confirmable* warning, not a hard failure — the register form (Step 5.3) is expected to catch `code === 'WEAK_PASSWORD_WARNING'` and offer to resubmit with `acknowledgeWeakPassword: true`.
-- **Route protection (`proxy.ts`) is deliberately not built yet.** It would only have real routes to gate once login/register/account pages exist (Step 5.3/5.4); building it now would mean writing a matcher against pages that don't exist. The actual auth boundary is unaffected either way — every backend request is still verified server-side regardless of what any Next.js-level gating does.
+- **Nest's default error shape is normalized once, not per call site.** `{ statusCode, message, error }` — where `message` is a `string[]` for class-validator failures — becomes a single `ApiError` with a joined string message and an optional `code` (Nest's `error` field). `code` matters for at least one real case: `WeakPasswordException` (422, `WEAK_PASSWORD_WARNING`) is a *confirmable* warning, not a hard failure — see the "Auth pages" section below for how the register form uses it.
+
+## Auth pages (Step 5.3)
+
+```
+frontend/app/
+  login/
+    page.tsx
+    _components/login-form/
+  register/
+    page.tsx
+    _components/register-form/
+  _components/
+    auth-status-banner/       # home page only
+
+frontend/lib/validation/
+  auth-schemas.ts              # zod, wraps @helpdesk/shared
+
+frontend/proxy.ts
+```
+
+- **`proxy.ts` is Next 16's renamed `middleware.ts`** (confirmed via the actual `node_modules` docs for this project's Next version — a real breaking change from older Next knowledge, not a typo). It redirects an already-authenticated visitor away from `/login`/`/register` back to `/`, based on presence of the `hd_access_token` cookie only — no JWT verification happens here. This is a UX redirect, not the real authorization boundary: the backend still verifies every request's JWT server-side regardless of what this does. It's scaffolded with an empty `PROTECTED_ROUTE_PREFIXES` array and the redirect-to-login branch already wired up, so Step 5.4's account pages just add a prefix (and a matcher entry) instead of restructuring the file.
+- **`lib/validation/auth-schemas.ts` wraps `@helpdesk/shared`'s validation functions/constants** (`isValidName`, `isStrongPassword`, `containsEmoji`, the `*_MIN/MAX_LENGTH` constants) rather than re-implementing rules in zod from scratch, so the frontend can't drift from what `register.dto.ts` actually enforces. Email *format* validity is deliberately not duplicated (see `packages/shared/src/validation/email.ts`) — only the shared length cap plus zod's own format check are applied client-side, with the backend's `400` as the authoritative answer. `registerSchema` adds a `confirmPassword` field that exists only in the zod shape (cross-field `refine`) and is stripped before the payload is sent — the backend has no concept of it.
+- **The `WEAK_PASSWORD_WARNING` flow is handled inline, not with a modal.** On a `422` with `code === 'WEAK_PASSWORD_WARNING'`, the register form sets local state and renders a warning `Alert` with a "use this password anyway" button that resubmits the same form values plus `acknowledgeWeakPassword: true`. Editing the password field afterward clears the warning — an acknowledgement shouldn't silently carry over to a different password the user typed next.
+- **`Header` is now `useProfile()`/`useLogout()`-driven**, replacing the 5.1 static "Log in" placeholder. Tickets/Account links and a name + Log out control render only when there's a session; Log in/Sign up render only when there isn't. Tickets/Account are hidden rather than shown-and-left-to-404 for logged-out visitors, since both routes will require auth once built.
+- **Post-login/register redirect target is `/`,** not a dedicated dashboard — there's no ticket list or account page yet (Steps 5.4/5.6). The home page's `AuthStatusBanner` (a small client component, kept separate so `app/page.tsx` itself stays a server component) shows a login/register prompt when logged out or a "Welcome back" note when logged in, so landing on `/` after auth isn't a dead end. `proxy.ts` also supports a `?redirectTo=` query param for when a protected route eventually bounces someone to `/login` first.
 
 ## Deployment
 

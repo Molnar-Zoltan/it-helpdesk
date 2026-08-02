@@ -1,3 +1,5 @@
+import { AuthStatusBanner } from "./_components/auth-status-banner";
+
 type Phase = {
   label: string;
   status: "done" | "active" | "planned";
@@ -48,6 +50,8 @@ export default function Home() {
           in place until there&apos;s a stable backend worth building a
           frontend on top of.
         </p>
+
+        <AuthStatusBanner />
 
         <div className="mt-10 rounded-lg border border-[#212A35] bg-[#121821]">
           <div className="border-b border-[#212A35] px-5 py-3 font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.15em] text-[#4A5568]">

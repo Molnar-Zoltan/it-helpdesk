@@ -1,15 +1,9 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from "@helpdesk/shared";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "./cookie-names";
 
-/**
- * The two httpOnly cookies that hold the access/refresh token pair. Never
- * read or set outside route handlers — the browser never gets JS access to
- * either value, and the NestJS backend never reads cookies at all (it only
- * ever accepts a Bearer token), so these names only matter within this app.
- */
-export const ACCESS_TOKEN_COOKIE = "hd_access_token";
-export const REFRESH_TOKEN_COOKIE = "hd_refresh_token";
+export { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE };
 
 /**
  * `secure` is gated on NODE_ENV rather than always-on, so the cookie still

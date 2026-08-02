@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { useRegister } from "@/lib/mutations/use-register";
@@ -14,6 +15,7 @@ import {
   registerSchema,
   type RegisterFormValues,
 } from "@/lib/validation/auth-schemas";
+import { PasswordRequirements } from "../password-requirements";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -30,10 +32,21 @@ export function RegisterForm() {
   const {
     register,
     handleSubmit,
+    watch,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    // firstName/lastName/email: validate once the field is first left, then
+    // live on every change after that. Password/confirmPassword override
+    // this with their own onChange handlers below, validating from the
+    // first keystroke instead of waiting for a blur.
+    mode: "onTouched",
   });
+
+  // Drives the live requirements checklist below the password field.
+  const passwordValue = watch("password") ?? "";
 
   const submit = async (
     values: RegisterFormValues,
@@ -98,36 +111,44 @@ export function RegisterForm() {
         )}
       </FormField>
 
-      <FormField
-        label="Password"
-        error={errors.password?.message}
-        hint="8+ characters, with an uppercase letter, a lowercase letter, a digit, and a symbol."
-      >
-        {(field) => (
-          <Input
-            {...field}
-            type="password"
-            autoComplete="new-password"
-            hasError={Boolean(errors.password)}
-            {...register("password", {
-              // Editing the password after a breach warning invalidates the
-              // "continue anyway" choice — a changed password needs to be
-              // re-checked, not silently waved through under the old
-              // acknowledgement.
-              onChange: () => setWeakPasswordWarning(false),
-            })}
-          />
-        )}
-      </FormField>
+      <div className="flex flex-col gap-2">
+        <FormField label="Password" error={errors.password?.message}>
+          {(field) => (
+            <PasswordInput
+              {...field}
+              autoComplete="new-password"
+              hasError={Boolean(errors.password)}
+              {...register("password", {
+                onChange: () => {
+                  // A changed password invalidates a prior breach
+                  // acknowledgement — it needs to be re-checked, not
+                  // silently waved through under the old confirmation.
+                  setWeakPasswordWarning(false);
+                  void trigger("password");
+                  // If confirm-password already has a value, re-check the
+                  // match too, so editing password back to matching (or
+                  // away from it) is reflected immediately rather than
+                  // waiting for the user to revisit that field.
+                  if (getValues("confirmPassword")) {
+                    void trigger("confirmPassword");
+                  }
+                },
+              })}
+            />
+          )}
+        </FormField>
+        <PasswordRequirements password={passwordValue} />
+      </div>
 
       <FormField label="Confirm password" error={errors.confirmPassword?.message}>
         {(field) => (
-          <Input
+          <PasswordInput
             {...field}
-            type="password"
             autoComplete="new-password"
             hasError={Boolean(errors.confirmPassword)}
-            {...register("confirmPassword")}
+            {...register("confirmPassword", {
+              onChange: () => void trigger("confirmPassword"),
+            })}
           />
         )}
       </FormField>

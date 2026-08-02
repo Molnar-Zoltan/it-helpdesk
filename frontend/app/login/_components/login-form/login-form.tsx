@@ -24,10 +24,18 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   });
+
+  // Disabling until both fields have something typed is just "don't let a
+  // blank form submit" — unlike register's password checklist, there's no
+  // nuanced feedback being hidden here, so a disabled button doesn't cost
+  // anything in discoverability.
+  const [email, password] = watch(["email", "password"]);
+  const canSubmit = Boolean(email) && Boolean(password);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -67,7 +75,12 @@ export function LoginForm() {
         <Alert tone="danger">{loginMutation.error.message}</Alert>
       )}
 
-      <Button type="submit" isLoading={loginMutation.isPending} className="mt-1">
+      <Button
+        type="submit"
+        disabled={!canSubmit}
+        isLoading={loginMutation.isPending}
+        className="mt-1"
+      >
         Log in
       </Button>
     </form>

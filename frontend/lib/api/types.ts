@@ -9,3 +9,19 @@ export interface UserProfile {
   role: Role;
   createdAt: string;
 }
+
+/** POST /auth/register body. acknowledgeWeakPassword is only sent on a
+ * resubmit after the user confirms past a WEAK_PASSWORD_WARNING (422). */
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  acknowledgeWeakPassword?: boolean;
+}
+
+/** POST /auth/login body. */
+export interface LoginPayload {
+  email: string;
+  password: string;
+}

@@ -41,15 +41,17 @@ export class UsersService {
   }
 
   /**
-   * Blocks password/email changes and account deletion on the three shared
-   * seed accounts (admin@helpdesk.dev / agent@helpdesk.dev /
-   * customer@helpdesk.dev) so the public live demo can't be locked out or
-   * defaced by a visitor who's logged in with the published credentials.
-   * Checked against `@helpdesk/shared`'s DEMO_USERS fixture — the same
-   * source of truth `seed.ts` inserts from — rather than an ID naming
-   * convention or a DB column, so the frontend can reuse the identical
-   * check without a round-trip. Deliberately does NOT block `updateName`;
-   * a cosmetic name change isn't destructive to the demo.
+   * Blocks name/password/email changes and account deletion on the three
+   * shared seed accounts (admin@helpdesk.dev / agent@helpdesk.dev /
+   * customer@helpdesk.dev) so the public live demo can't be locked out,
+   * deleted, or defaced by a visitor who's logged in with the published
+   * credentials. A renamed demo account is immediately visible to the next
+   * visitor (e.g. in a "Welcome, ___" header) with no login attempt needed
+   * to notice, unlike password/email changes — so it's guarded too, not
+   * just the security-sensitive fields. Checked against `@helpdesk/shared`'s
+   * DEMO_USERS fixture — the same source of truth `seed.ts` inserts from —
+   * rather than an ID naming convention or a DB column, so the frontend can
+   * reuse the identical check without a round-trip.
    */
   private assertNotDemoAccount(userId: string): void {
     if (isDemoUserId(userId)) {
@@ -58,6 +60,7 @@ export class UsersService {
   }
 
   async updateName(userId: string, dto: UpdateNameDto) {
+    this.assertNotDemoAccount(userId);
     return this.prisma.user.update({
       where: { id: userId },
       data: {

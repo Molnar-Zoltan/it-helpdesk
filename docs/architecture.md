@@ -86,6 +86,8 @@ Password, email, and deletion all require `currentPassword` re-verification and 
 
 **Deletion doesn't cascade-delete tickets or messages.** GDPR's right to erasure (Article 17) doesn't override the need to preserve operational records — an agent's resolution history and reporting metrics shouldn't disappear because a customer deleted their account. Instead, deletion anonymizes: the departing user's message content is replaced with a placeholder, then the `User` row is deleted, with `Ticket.customerId`/`agentId` and `Message.senderId` set to `null` via `onDelete: SetNull` (see `schema.md` for the full FK behavior table). `RefreshToken` rows are hard-deleted via cascade, since they carry no data worth preserving.
 
+**All four mutations above are also blocked outright on the three seeded demo accounts**, via a private `UsersService.assertNotDemoAccount()` guard checked before password re-verification. The demo login credentials are published in the README for the live demo, so without this, any visitor could rename, relock, or delete a shared account every other visitor depends on. The guard checks the caller's `userId` against `DEMO_USER_IDS` from `@helpdesk/shared` — the same fixture `seed.ts` seeds from — rather than a DB column or an ID-naming convention, so the frontend can later reuse the identical `isDemoUserId()` check without a round-trip. See [api-endpoints.md](api-endpoints.md#demo-account-protection) for the per-endpoint error responses.
+
 ## Deployment
 
 ```

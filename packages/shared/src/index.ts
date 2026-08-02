@@ -4,6 +4,8 @@
 // unchanged, so `@helpdesk/shared`'s public API doesn't change.
 export type { Role, TicketStatus, TicketPriority } from './enums';
 
+export { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './auth-config';
+
 export type { DemoUser, DemoTicket, DemoMessage } from './demo-data';
 export {
   DEMO_PASSWORD,

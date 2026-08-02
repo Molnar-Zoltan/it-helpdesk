@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { useLogin } from "@/lib/mutations/use-login";
@@ -53,9 +54,8 @@ export function LoginForm() {
 
       <FormField label="Password" error={errors.password?.message}>
         {(field) => (
-          <Input
+          <PasswordInput
             {...field}
-            type="password"
             autoComplete="current-password"
             hasError={Boolean(errors.password)}
             {...register("password")}

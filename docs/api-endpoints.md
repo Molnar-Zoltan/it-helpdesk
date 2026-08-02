@@ -83,6 +83,7 @@ Updates first and/or last name. No `currentPassword` required — name isn't a s
 ```json
 { "id": "string", "firstName": "string", "lastName": "string" }
 ```
+**Errors**: `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `PATCH /users/me/password`
 Changes the account password. Requires `currentPassword` for re-verification. Revokes every other active refresh token, keeping the session that made the request alive.
@@ -95,7 +96,7 @@ Changes the account password. Requires `currentPassword` for re-verification. Re
 ```json
 { "message": "Password updated" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match.
+**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `PATCH /users/me/email`
 Changes the account email. Requires `currentPassword`. Revokes every other active refresh token, keeping the current session alive — same pattern as password change.
@@ -108,7 +109,7 @@ Changes the account email. Requires `currentPassword`. Revokes every other activ
 ```json
 { "message": "Email updated" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match; `409` if `newEmail` is already registered to another account.
+**Errors**: `401` if `currentPassword` doesn't match; `409` if `newEmail` is already registered to another account; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `DELETE /users/me`
 Deletes the account. Requires `currentPassword`. This is a hard delete of the `User` row and all their `RefreshToken`s (cascade); their `Ticket`/`Message` history is **not** deleted — see [schema.md](schema.md#gdpr--account-deletion-behavior) for the anonymization behavior.
@@ -121,7 +122,13 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 ```json
 { "message": "Account deleted" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match.
+**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+
+### Demo account protection
+
+All four self-service mutations above (`PATCH /users/me`, `PATCH /users/me/password`, `PATCH /users/me/email`, `DELETE /users/me`) are blocked with `403 DEMO_ACCOUNT_PROTECTED` when called against one of the three seeded demo accounts (`admin@helpdesk.dev`, `agent@helpdesk.dev`, `customer@helpdesk.dev`). These credentials are published in the README for the live demo, so without this guard anyone could lock out, rename, or delete a shared account that every visitor relies on.
+
+The check (`UsersService.assertNotDemoAccount`) looks up the caller's `userId` against `DEMO_USER_IDS`, exported from [`packages/shared`](../packages/shared/src/demo-data/fixture.ts) — the same fixture `seed.ts` inserts from — rather than a DB column or an ID-naming convention. This keeps demo-account identity in one place and lets the frontend reuse the identical `isDemoUserId()` check to disable the relevant UI without a round-trip. It runs before password re-verification, so it applies even when the (publicly known) demo password is supplied correctly.
 
 ---
 
@@ -231,19 +238,19 @@ Returns the full message thread for a ticket, ordered oldest-first (`createdAt` 
 
 ## Auth model summary
 
-| Endpoint | Auth required | `currentPassword` required | Revokes other sessions |
-|---|---|---|---|
-| `POST /auth/register` | No | — | — |
-| `POST /auth/login` | No | — | — |
-| `POST /auth/refresh` | No (refresh token in body) | — | — |
-| `POST /auth/logout` | No (refresh token in body) | — | — |
-| `GET /users/me` | Yes | No | — |
-| `PATCH /users/me` | Yes | No | No |
-| `PATCH /users/me/password` | Yes | Yes | Yes, except current session |
-| `PATCH /users/me/email` | Yes | Yes | Yes, except current session |
-| `DELETE /users/me` | Yes | Yes | Yes, all (cascade) |
+| Endpoint | Auth required | `currentPassword` required | Revokes other sessions | Blocked on demo accounts |
+|---|---|---|---|---|
+| `POST /auth/register` | No | — | — | — |
+| `POST /auth/login` | No | — | — | No — demo accounts can still log in |
+| `POST /auth/refresh` | No (refresh token in body) | — | — | — |
+| `POST /auth/logout` | No (refresh token in body) | — | — | — |
+| `GET /users/me` | Yes | No | — | No |
+| `PATCH /users/me` | Yes | No | No | Yes |
+| `PATCH /users/me/password` | Yes | Yes | Yes, except current session | Yes |
+| `PATCH /users/me/email` | Yes | Yes | Yes, except current session | Yes |
+| `DELETE /users/me` | Yes | Yes | Yes, all (cascade) | Yes |
 
-The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation.
+The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column.
 
 ## Ticket endpoint access summary
 

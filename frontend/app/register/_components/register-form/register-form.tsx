@@ -81,6 +81,7 @@ export function RegisterForm() {
             <Input
               {...field}
               autoComplete="given-name"
+              placeholder="Jane"
               hasError={Boolean(errors.firstName)}
               {...register("firstName")}
             />
@@ -92,6 +93,7 @@ export function RegisterForm() {
             <Input
               {...field}
               autoComplete="family-name"
+              placeholder="Doe"
               hasError={Boolean(errors.lastName)}
               {...register("lastName")}
             />
@@ -105,6 +107,7 @@ export function RegisterForm() {
             {...field}
             type="email"
             autoComplete="email"
+            placeholder="you@example.com"
             hasError={Boolean(errors.email)}
             {...register("email")}
           />

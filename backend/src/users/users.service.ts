@@ -3,8 +3,10 @@ import {
   NotFoundException,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { isDemoUserId } from '@helpdesk/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -38,6 +40,23 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * Blocks password/email changes and account deletion on the three shared
+   * seed accounts (admin@helpdesk.dev / agent@helpdesk.dev /
+   * customer@helpdesk.dev) so the public live demo can't be locked out or
+   * defaced by a visitor who's logged in with the published credentials.
+   * Checked against `@helpdesk/shared`'s DEMO_USERS fixture — the same
+   * source of truth `seed.ts` inserts from — rather than an ID naming
+   * convention or a DB column, so the frontend can reuse the identical
+   * check without a round-trip. Deliberately does NOT block `updateName`;
+   * a cosmetic name change isn't destructive to the demo.
+   */
+  private assertNotDemoAccount(userId: string): void {
+    if (isDemoUserId(userId)) {
+      throw new ForbiddenException(USERS_ERRORS.DEMO_ACCOUNT_PROTECTED);
+    }
+  }
+
   async updateName(userId: string, dto: UpdateNameDto) {
     return this.prisma.user.update({
       where: { id: userId },
@@ -56,6 +75,7 @@ export class UsersService {
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
+    this.assertNotDemoAccount(userId);
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid)
@@ -96,6 +116,7 @@ export class UsersService {
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
+    this.assertNotDemoAccount(userId);
 
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid)
@@ -128,6 +149,7 @@ export class UsersService {
   async deleteAccount(userId: string, currentPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
+    this.assertNotDemoAccount(userId);
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid)

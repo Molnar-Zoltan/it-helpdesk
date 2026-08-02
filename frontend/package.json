@@ -9,10 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@helpdesk/shared": "*",
+    "@hookform/resolvers": "^5.6.0",
+    "@tanstack/react-query": "^5.101.4",
+    "clsx": "^2.1.1",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@helpdesk/shared": "*"
+    "react-hook-form": "^7.84.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

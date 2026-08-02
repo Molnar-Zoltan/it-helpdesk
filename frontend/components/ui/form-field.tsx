@@ -1,0 +1,39 @@
+import { type ReactNode, useId } from "react";
+import { cn } from "@/lib/utils";
+
+interface FormFieldProps {
+  label: string;
+  error?: string;
+  hint?: string;
+  className?: string;
+  /** Render prop so FormField stays control-agnostic (Input, TextArea, custom selects, ...). */
+  children: (fieldProps: { id: string; "aria-invalid": boolean; "aria-describedby"?: string }) => ReactNode;
+}
+
+export function FormField({ label, error, hint, className, children }: FormFieldProps) {
+  const id = useId();
+  const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <label htmlFor={id} className="text-sm font-medium text-text-secondary">
+        {label}
+      </label>
+      {children({
+        id,
+        "aria-invalid": Boolean(error),
+        "aria-describedby": error ? errorId : hint ? hintId : undefined,
+      })}
+      {error ? (
+        <p id={errorId} className="text-xs text-accent-danger">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={hintId} className="text-xs text-text-muted">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}

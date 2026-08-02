@@ -10,6 +10,8 @@ export {
   DEMO_USERS,
   DEMO_TICKETS,
   DEMO_MESSAGES,
+  DEMO_USER_IDS,
+  isDemoUserId,
   daysAgo,
 } from './demo-data';
 

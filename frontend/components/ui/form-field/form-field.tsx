@@ -1,14 +1,6 @@
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
-
-interface FormFieldProps {
-  label: string;
-  error?: string;
-  hint?: string;
-  className?: string;
-  /** Render prop so FormField stays control-agnostic (Input, TextArea, custom selects, ...). */
-  children: (fieldProps: { id: string; "aria-invalid": boolean; "aria-describedby"?: string }) => ReactNode;
-}
+import type { FormFieldProps } from "./form-field.types";
 
 export function FormField({ label, error, hint, className, children }: FormFieldProps) {
   const id = useId();

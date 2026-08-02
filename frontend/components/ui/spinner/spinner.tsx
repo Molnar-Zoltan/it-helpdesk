@@ -1,9 +1,5 @@
 import { cn } from "@/lib/utils";
-
-interface SpinnerProps {
-  className?: string;
-  label?: string;
-}
+import type { SpinnerProps } from "./spinner.types";
 
 export function Spinner({ className, label = "Loading" }: SpinnerProps) {
   return (

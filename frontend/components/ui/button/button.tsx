@@ -1,12 +1,6 @@
-import { type ButtonHTMLAttributes, forwardRef } from "react";
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
-
-type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
-
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  isLoading?: boolean;
-}
+import type { ButtonProps, ButtonVariant } from "./button.types";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:

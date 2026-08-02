@@ -1,11 +1,5 @@
-import { type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-
-type AlertTone = "danger" | "done" | "neutral";
-
-interface AlertProps extends HTMLAttributes<HTMLDivElement> {
-  tone?: AlertTone;
-}
+import type { AlertProps, AlertTone } from "./alert.types";
 
 const toneClasses: Record<AlertTone, string> = {
   danger: "border-accent-danger/30 bg-accent-danger/10 text-accent-danger",

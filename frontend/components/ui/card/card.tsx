@@ -1,7 +1,7 @@
-import { type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
+import type { CardProps } from "./card.types";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Card({ className, ...props }: CardProps) {
   return (
     <div
       className={cn(

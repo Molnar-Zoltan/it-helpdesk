@@ -1,12 +1,5 @@
-import { type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-
-type BadgeTone = "neutral" | "done" | "active" | "danger";
-
-interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  tone?: BadgeTone;
-  dot?: boolean;
-}
+import type { BadgeProps, BadgeTone } from "./badge.types";
 
 const toneClasses: Record<BadgeTone, string> = {
   neutral: "bg-surface-raised text-text-secondary border-border-strong",

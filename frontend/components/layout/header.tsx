@@ -13,7 +13,7 @@ export function Header() {
           href="/"
           className="font-mono text-sm font-semibold tracking-wide text-text"
         >
-          it-helpdesk
+          IT Helpdesk
         </Link>
 
         <nav className="flex items-center gap-6">

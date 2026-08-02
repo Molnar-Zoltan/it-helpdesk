@@ -1,9 +1,17 @@
-node_modules/
-.env
-**/.env
-dist/
-.next/
+# Dependencies
+**/node_modules/
+
+# Environment variables
+**/.env*
+!**/.env.example
+
+# Build outputs
+**/dist/
+**/.next/
+
+# Generated files
 backend/generated/
-backend/dist/
+
+# IDE
 .vscode/
 .idea/

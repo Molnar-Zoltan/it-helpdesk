@@ -88,6 +88,47 @@ Password, email, and deletion all require `currentPassword` re-verification and 
 
 **All four mutations above are also blocked outright on the three seeded demo accounts**, via a private `UsersService.assertNotDemoAccount()` guard checked before password re-verification. The demo login credentials are published in the README for the live demo, so without this, any visitor could rename, relock, or delete a shared account every other visitor depends on. The guard checks the caller's `userId` against `DEMO_USER_IDS` from `@helpdesk/shared` — the same fixture `seed.ts` seeds from — rather than a DB column or an ID-naming convention, so the frontend can later reuse the identical `isDemoUserId()` check without a round-trip. See [api-endpoints.md](api-endpoints.md#demo-account-protection) for the per-endpoint error responses.
 
+## Frontend API layer & auth state
+
+The browser never talks to the NestJS backend directly, and never holds a raw JWT in anything JS-accessible. Next.js Route Handlers sit in between as a BFF (backend-for-frontend) layer:
+
+```text
+frontend/app/api/
+  auth/
+    register/route.ts
+    login/route.ts
+    logout/route.ts
+    refresh/route.ts
+  backend/
+    [...path]/route.ts
+
+frontend/lib/
+  server/
+    auth-cookies.ts        # cookie names, set/clear/get helpers
+    backend-client.ts       # backendFetch(), refreshTokens()
+    auth-route-helpers.ts   # shared login/register response handling
+  api/
+    client.ts                # browser-side apiClient (-> /api/backend/*)
+    auth-client.ts            # browser-side authClient (-> /api/auth/*)
+    types.ts                    # UserProfile, RegisterPayload, LoginPayload
+  queries/
+    use-profile.ts
+  mutations/
+    use-login.ts
+    use-register.ts
+    use-logout.ts
+```
+
+- **Two httpOnly cookies, `hd_access_token` and `hd_refresh_token`, are the only place a token lives in the browser.** They're set by `/api/auth/register` and `/api/auth/login` after a successful backend call, never echoed into a JSON response body. `secure` is gated on `NODE_ENV === 'production'` so cookies still get set over plain `http://localhost` in dev — a `Secure` cookie is silently dropped by the browser on a non-TLS origin.
+- **`/api/backend/[...path]` is a catch-all proxy for everything authenticated except the four `/api/auth/*` actions above** (`GET /users/me` today; tickets endpoints once Step 5.5+ lands). It reads the access token cookie, forwards the request to the backend with `Authorization: Bearer <token>` injected server-side, and forwards the backend's response body/status back unchanged.
+- **Refresh is transparent to the browser, and bounded to one retry.** If the access token cookie is missing entirely, the proxy refreshes proactively before making a request it already knows would `401`. If a request that *did* have an access token still gets a `401` back (expired between requests), the proxy refreshes once and retries the original request once. A second `401` after a fresh token is treated as a genuinely dead session — revoked or tampered — and passed through rather than retried further.
+- **One `refreshTokens()` function, not an HTTP call to `/api/auth/refresh`.** Both the client-triggered `/api/auth/refresh` route and the proxy's internal retry logic call the same plain function in `lib/server/backend-client.ts`, so the internal case doesn't cost a self-fetch round trip.
+- **`ACCESS_TOKEN_TTL_MS`/`REFRESH_TOKEN_TTL_MS` moved from backend-only constants into `@helpdesk/shared`.** Cookie `maxAge` mirrors real token lifetime; keeping the numbers backend-only would have meant duplicating them in the frontend with the same drift risk this project already hit once with `REFRESH_TOKEN_TTL_MS`. The backend remains authoritative for actual authorization — every request is still verified against the JWT signature/exp server-side regardless of what a cookie's `maxAge` says.
+- **Auth state has no separate context or store.** `useProfile()` (`lib/queries/use-profile.ts`) wraps `GET /users/me` in a TanStack Query hook with `retry: false`; its three states *are* the auth state — `isLoading` (unknown yet), `isError` (logged out — the proxy's own refresh-and-retry already failed before this `401` surfaced), `data` (the current user). `useLogin`/`useRegister` invalidate this query on success; `useLogout` calls `queryClient.clear()` to drop *all* cached data, not just the profile, so a logged-out session can't hold onto another user's data in memory.
+- **`apiClient` (browser) vs `authClient` (browser) vs `backendFetch` (server-only).** `apiClient.get/post/patch/delete` always target `/api/backend/*` and are what every future query/mutation hook (tickets, account pages) will use. `authClient` is a small separate wrapper for the three `/api/auth/*` actions, since those aren't authenticated pass-throughs — the route handlers do real work (setting/clearing cookies) rather than just forwarding. `backendFetch` is the one place that actually knows `BACKEND_API_URL`; it only runs inside route handlers, marked with the `server-only` package so an accidental client-side import fails at build time instead of leaking the backend origin into a browser bundle.
+- **Nest's default error shape is normalized once, not per call site.** `{ statusCode, message, error }` — where `message` is a `string[]` for class-validator failures — becomes a single `ApiError` with a joined string message and an optional `code` (Nest's `error` field). `code` matters for at least one real case already: `WeakPasswordException` (422, `WEAK_PASSWORD_WARNING`) is a *confirmable* warning, not a hard failure — the register form (Step 5.3) is expected to catch `code === 'WEAK_PASSWORD_WARNING'` and offer to resubmit with `acknowledgeWeakPassword: true`.
+- **Route protection (`proxy.ts`) is deliberately not built yet.** It would only have real routes to gate once login/register/account pages exist (Step 5.3/5.4); building it now would mean writing a matcher against pages that don't exist. The actual auth boundary is unaffected either way — every backend request is still verified server-side regardless of what any Next.js-level gating does.
+
 ## Deployment
 
 ```

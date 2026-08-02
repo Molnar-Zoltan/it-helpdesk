@@ -1,10 +1,16 @@
 export class ApiError extends Error {
   readonly status: number;
+  /** Nest's structured `error` field, e.g. "WEAK_PASSWORD_WARNING" for the
+   * HIBP soft-check on register/password-change. Most errors don't set
+   * this — it's only present where the backend deliberately distinguishes
+   * a confirmable warning from a hard rejection. */
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -33,7 +39,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const message = Array.isArray(errorBody?.message)
       ? errorBody.message.join(", ")
       : (errorBody?.message ?? "Something went wrong");
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, errorBody?.error);
   }
 
   return data as T;

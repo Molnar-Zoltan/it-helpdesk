@@ -17,6 +17,8 @@ export const USERS_ERRORS = {
   USER_NOT_FOUND: 'User not found',
   CURRENT_PASSWORD_INCORRECT: 'Current password is incorrect',
   EMAIL_ALREADY_IN_USE: 'Email already in use',
+  DEMO_ACCOUNT_PROTECTED:
+    'This is a shared demo account and cannot be modified or deleted',
 } as const;
 
 export const TICKETS_ERRORS = {

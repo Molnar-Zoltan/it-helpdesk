@@ -39,6 +39,19 @@ export const DEMO_USERS: DemoUser[] = [
   },
 ];
 
+// Lets both the backend (guarding password/email/delete on UsersService)
+// and the frontend (hiding/disabling those same actions in the UI without
+// a round-trip) recognize demo accounts from a single source of truth,
+// instead of duplicating the three IDs or relying on an ID naming
+// convention that isn't enforced anywhere.
+export const DEMO_USER_IDS: ReadonlySet<string> = new Set(
+  DEMO_USERS.map((user) => user.id),
+);
+
+export function isDemoUserId(userId: string): boolean {
+  return DEMO_USER_IDS.has(userId);
+}
+
 const CUSTOMER_ID = 'demo-customer';
 const AGENT_ID = 'demo-agent';
 

@@ -8,18 +8,37 @@ interface BackendErrorBody {
 }
 
 async function postAuth(path: string, body?: unknown): Promise<void> {
-  const res = await fetch(`/api/auth${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api/auth${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // The browser couldn't even reach this app's own /api/auth/* route —
+    // e.g. offline, or this app's server itself is down. Distinct from the
+    // backend-unreachable case below, which still gets a normal response
+    // (see backendFetch's 503 fallback in lib/server/backend-client.ts).
+    throw new ApiError(
+      0,
+      "Couldn't reach the server. Check your connection and try again.",
+    );
+  }
 
   if (!res.ok) {
-    const errorBody = (await res.json()) as BackendErrorBody;
-    const message = Array.isArray(errorBody.message)
+    // Guard against a non-JSON error body the same way apiClient does —
+    // in practice backendFetch's 503 fallback means this app's own routes
+    // always return valid JSON now, but this stays defensive rather than
+    // assuming that holds forever.
+    const contentType = res.headers.get("Content-Type") ?? "";
+    const errorBody = contentType.includes("application/json")
+      ? ((await res.json()) as BackendErrorBody)
+      : undefined;
+    const message = Array.isArray(errorBody?.message)
       ? errorBody.message.join(", ")
-      : errorBody.message;
-    throw new ApiError(res.status, message, errorBody.error);
+      : (errorBody?.message ?? "Something went wrong. Please try again.");
+    throw new ApiError(res.status, message, errorBody?.error);
   }
 }
 

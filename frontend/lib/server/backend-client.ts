@@ -16,7 +16,16 @@ export interface BackendErrorBody {
 
 /** Plain fetch to the backend. Never called from the browser — the backend
  * only exists inside the private network this app's server runs in (or, in
- * dev, on localhost); nothing here reads or forwards browser cookies. */
+ * dev, on localhost); nothing here reads or forwards browser cookies.
+ *
+ * fetch() itself rejects (rather than resolving with a 4xx/5xx) when the
+ * backend is completely unreachable — connection refused, DNS failure,
+ * etc. That's turned into a normal 503 Response here instead of letting the
+ * rejection propagate, so every caller (register/login route handlers,
+ * refreshTokens, the /api/backend proxy) only ever has to handle a Response
+ * object, not two different failure shapes. Content-Type/shape match the
+ * backend's own error responses so existing JSON-parsing error handling
+ * (handleTokenResponse, apiClient) picks this up for free. */
 export function backendFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${BACKEND_API_URL}${path}`, {
     ...init,
@@ -24,7 +33,17 @@ export function backendFetch(path: string, init?: RequestInit): Promise<Response
       "Content-Type": "application/json",
       ...init?.headers,
     },
-  });
+  }).catch(
+    () =>
+      new Response(
+        JSON.stringify({
+          statusCode: 503,
+          message: "Unable to reach the server. Please try again in a moment.",
+          error: "BACKEND_UNREACHABLE",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ),
+  );
 }
 
 /**
@@ -44,7 +63,14 @@ export async function refreshTokens(refreshToken: string): Promise<string | null
   });
 
   if (!res.ok) {
-    await clearAuthCookies();
+    // Only clear cookies for a real rejection (expired/revoked/invalid
+    // token) — a 503 here is backendFetch's own unreachable-backend
+    // fallback, not the backend saying the token is bad. The same refresh
+    // token may still be good once the backend comes back, so don't log
+    // the user out over a transient network blip.
+    if (res.status !== 503) {
+      await clearAuthCookies();
+    }
     return null;
   }
 

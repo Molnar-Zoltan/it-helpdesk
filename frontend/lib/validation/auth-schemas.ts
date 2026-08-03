@@ -36,7 +36,7 @@ export function nameField(label: string) {
     });
 }
 
-const password = z
+export const password = z
   .string()
   .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
   .max(PASSWORD_MAX_LENGTH, `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer`)

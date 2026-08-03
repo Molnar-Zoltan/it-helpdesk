@@ -39,3 +39,17 @@ export interface UpdateNameResponse {
   firstName: string;
   lastName: string;
 }
+
+/** PATCH /users/me/password body. acknowledgeWeakPassword is only sent on a
+ * resubmit after the user confirms past a WEAK_PASSWORD_WARNING (422),
+ * mirroring RegisterPayload's same field. */
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  acknowledgeWeakPassword?: boolean;
+}
+
+/** PATCH /users/me/password response. */
+export interface ChangePasswordResponse {
+  message: string;
+}

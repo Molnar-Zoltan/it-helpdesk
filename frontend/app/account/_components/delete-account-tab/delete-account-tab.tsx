@@ -31,11 +31,15 @@ export function DeleteAccountTab() {
   const {
     register,
     handleSubmit,
+    watch,
     reset,
     formState: { errors },
   } = useForm<DeleteAccountFormValues>({
     resolver: zodResolver(deleteAccountSchema),
+    defaultValues: { currentPassword: "" },
   });
+
+  const currentPasswordValue = watch("currentPassword");
 
   const closeModal = () => {
     setModalOpen(false);
@@ -116,6 +120,7 @@ export function DeleteAccountTab() {
             <Button
               type="submit"
               variant="danger"
+              disabled={currentPasswordValue.length === 0}
               isLoading={deleteAccountMutation.isPending}
             >
               Delete account

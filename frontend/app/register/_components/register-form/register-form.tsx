@@ -117,7 +117,11 @@ export function RegisterForm() {
       </FormField>
 
       <div className="flex flex-col gap-2">
-        <FormField label="Password" error={errors.password?.message}>
+        <FormField
+          label="Password"
+          error={errors.password?.message}
+          hideVisibleError
+        >
           {(field) => (
             <PasswordInput
               {...field}

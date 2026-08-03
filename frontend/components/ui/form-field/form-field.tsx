@@ -2,7 +2,14 @@ import { useId } from "react";
 import { cn } from "@/lib/utils";
 import type { FormFieldProps } from "./form-field.types";
 
-export function FormField({ label, error, hint, className, children }: FormFieldProps) {
+export function FormField({
+  label,
+  error,
+  hint,
+  hideVisibleError,
+  className,
+  children,
+}: FormFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
@@ -18,7 +25,10 @@ export function FormField({ label, error, hint, className, children }: FormField
         "aria-describedby": error ? errorId : hint ? hintId : undefined,
       })}
       {error ? (
-        <p id={errorId} className="text-xs text-accent-danger">
+        <p
+          id={errorId}
+          className={hideVisibleError ? "sr-only" : "text-xs text-accent-danger"}
+        >
           {error}
         </p>
       ) : hint ? (

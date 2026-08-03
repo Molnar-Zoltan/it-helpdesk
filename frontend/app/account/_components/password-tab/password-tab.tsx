@@ -96,7 +96,11 @@ export function PasswordTab() {
       </FormField>
 
       <div className="flex flex-col gap-2">
-        <FormField label="New password" error={errors.newPassword?.message}>
+        <FormField
+          label="New password"
+          error={errors.newPassword?.message}
+          hideVisibleError
+        >
           {(field) => (
             <PasswordInput
               {...field}

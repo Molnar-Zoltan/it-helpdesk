@@ -21,18 +21,16 @@ interface EmailTabProps {
 
 // currentPassword required + revokes every other active session — same
 // re-verification pattern as the Password tab (see docs/architecture.md's
-// account self-service table). newEmail defaults to the current address,
-// so "isDirty" alone is enough to keep the submit button disabled until
-// the value actually changes — no separate "must differ" rule needed here
-// the way changePasswordSchema needed one for currentPassword/newPassword.
+// account self-service table). newEmail defaults to the current address.
 export function EmailTab({ profile }: EmailTabProps) {
   const changeEmailMutation = useChangeEmail();
 
   const {
     register,
     handleSubmit,
+    watch,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<ChangeEmailFormValues>({
     resolver: zodResolver(changeEmailSchema),
     defaultValues: {
@@ -40,6 +38,16 @@ export function EmailTab({ profile }: EmailTabProps) {
       newEmail: profile.email,
     },
   });
+
+  const newEmailValue = watch("newEmail");
+  const currentPasswordValue = watch("currentPassword");
+  // Deliberately not just isDirty: that goes true the moment *either*
+  // field is touched, including typing into currentPassword while
+  // newEmail is untouched (or vice versa) — neither is actually a
+  // submittable state. The button should only enable once the email has
+  // genuinely changed AND a password has been entered to confirm it.
+  const canSubmit =
+    newEmailValue !== profile.email && currentPasswordValue.length > 0;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -99,7 +107,7 @@ export function EmailTab({ profile }: EmailTabProps) {
 
       <Button
         type="submit"
-        disabled={!isDirty}
+        disabled={!canSubmit}
         isLoading={changeEmailMutation.isPending}
         className="self-start"
       >

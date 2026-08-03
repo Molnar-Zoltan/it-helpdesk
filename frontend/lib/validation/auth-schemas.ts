@@ -20,7 +20,7 @@ import {
  * defer to the backend's 400 for the authoritative answer.
  */
 
-const email = z
+export const email = z
   .string()
   .min(1, "Email is required")
   .max(EMAIL_MAX_LENGTH, `Email must be ${EMAIL_MAX_LENGTH} characters or fewer`)

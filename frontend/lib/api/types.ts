@@ -53,3 +53,14 @@ export interface ChangePasswordPayload {
 export interface ChangePasswordResponse {
   message: string;
 }
+
+/** PATCH /users/me/email body. */
+export interface ChangeEmailPayload {
+  currentPassword: string;
+  newEmail: string;
+}
+
+/** PATCH /users/me/email response. */
+export interface ChangeEmailResponse {
+  message: string;
+}

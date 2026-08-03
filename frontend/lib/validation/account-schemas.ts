@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PASSWORD_MAX_LENGTH } from "@helpdesk/shared";
-import { nameField, password } from "./auth-schemas";
+import { nameField, password, email } from "./auth-schemas";
 
 export const updateNameSchema = z.object({
   firstName: nameField("First name"),
@@ -35,3 +35,15 @@ export const changePasswordSchema = z
     path: ["newPassword"],
   });
 export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+
+export const changeEmailSchema = z.object({
+  // Same presence/length-only treatment as currentPassword in
+  // changePasswordSchema — an existing password being re-verified, not
+  // one to strength-check.
+  currentPassword: z
+    .string()
+    .min(1, "Current password is required")
+    .max(PASSWORD_MAX_LENGTH, `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer`),
+  newEmail: email,
+});
+export type ChangeEmailFormValues = z.infer<typeof changeEmailSchema>;

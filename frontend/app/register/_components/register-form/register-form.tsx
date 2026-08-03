@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -60,6 +61,7 @@ export function RegisterForm() {
         lastName: values.lastName,
         ...(acknowledgeWeakPassword ? { acknowledgeWeakPassword: true } : {}),
       });
+      toast.success("Account created — welcome aboard!");
       router.push(redirectTo);
     } catch (error) {
       if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {

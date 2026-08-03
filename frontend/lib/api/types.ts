@@ -25,3 +25,17 @@ export interface LoginPayload {
   email: string;
   password: string;
 }
+
+/** PATCH /users/me body. Both fields optional per the backend DTO, but the
+ * Name tab always sends both since it's one combined form. */
+export interface UpdateNamePayload {
+  firstName?: string;
+  lastName?: string;
+}
+
+/** PATCH /users/me response. */
+export interface UpdateNameResponse {
+  id: string;
+  firstName: string;
+  lastName: string;
+}

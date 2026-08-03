@@ -26,7 +26,7 @@ const email = z
   .max(EMAIL_MAX_LENGTH, `Email must be ${EMAIL_MAX_LENGTH} characters or fewer`)
   .email("Enter a valid email address");
 
-function nameField(label: string) {
+export function nameField(label: string) {
   return z
     .string()
     .min(NAME_MIN_LENGTH, `${label} is required`)

@@ -13,6 +13,7 @@ import { useChangePassword } from "@/lib/mutations/use-change-password";
 import { ApiError } from "@/lib/api/client";
 import {
   changePasswordSchema,
+  NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE,
   type ChangePasswordFormValues,
 } from "@/lib/validation/account-schemas";
 
@@ -100,7 +101,9 @@ export function PasswordTab() {
         <FormField
           label="New password"
           error={errors.newPassword?.message}
-          hideVisibleError
+          hideVisibleError={
+            errors.newPassword?.message !== NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE
+          }
         >
           {(field) => (
             <PasswordInput

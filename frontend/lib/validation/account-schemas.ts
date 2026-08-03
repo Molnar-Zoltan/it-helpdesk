@@ -8,6 +8,12 @@ export const updateNameSchema = z.object({
 });
 export type UpdateNameFormValues = z.infer<typeof updateNameSchema>;
 
+// Exported so password-tab.tsx can tell this specific error apart from
+// the length/strength/emoji ones already represented in the checklist —
+// unlike those, this rule has no checklist item, so it must stay visible.
+export const NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE =
+  "New password must be different from your current password";
+
 export const changePasswordSchema = z
   .object({
     // Presence/length only, same treatment as loginSchema's password field —
@@ -31,7 +37,7 @@ export const changePasswordSchema = z
   // that saves a round trip in the common case; the backend's hash-based
   // check remains the authoritative one.
   .refine((data) => data.newPassword !== data.currentPassword, {
-    message: "New password must be different from your current password",
+    message: NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE,
     path: ["newPassword"],
   });
 export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;

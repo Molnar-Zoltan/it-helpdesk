@@ -19,6 +19,8 @@ export const USERS_ERRORS = {
   EMAIL_ALREADY_IN_USE: 'Email already in use',
   DEMO_ACCOUNT_PROTECTED:
     'This is a shared demo account and cannot be modified or deleted',
+  NEW_PASSWORD_SAME_AS_CURRENT:
+    'New password must be different from your current password',
 } as const;
 
 export const TICKETS_ERRORS = {

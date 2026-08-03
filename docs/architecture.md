@@ -137,12 +137,20 @@ frontend/app/
     _components/login-form/
   register/
     page.tsx
-    _components/register-form/
+    _components/
+      register-form/
+      password-requirements/    # live per-criterion checklist
   _components/
     auth-status-banner/       # home page only
 
 frontend/lib/validation/
   auth-schemas.ts              # zod, wraps @helpdesk/shared
+
+frontend/components/ui/
+  password-input/              # show/hide toggle, used by both forms
+
+frontend/components/layout/
+  user-menu/                   # dropdown: Account, Log out
 
 frontend/proxy.ts
 ```
@@ -150,7 +158,11 @@ frontend/proxy.ts
 - **`proxy.ts` is Next 16's renamed `middleware.ts`** (confirmed via the actual `node_modules` docs for this project's Next version — a real breaking change from older Next knowledge, not a typo). It redirects an already-authenticated visitor away from `/login`/`/register` back to `/`, based on presence of the `hd_access_token` cookie only — no JWT verification happens here. This is a UX redirect, not the real authorization boundary: the backend still verifies every request's JWT server-side regardless of what this does. It's scaffolded with an empty `PROTECTED_ROUTE_PREFIXES` array and the redirect-to-login branch already wired up, so Step 5.4's account pages just add a prefix (and a matcher entry) instead of restructuring the file.
 - **`lib/validation/auth-schemas.ts` wraps `@helpdesk/shared`'s validation functions/constants** (`isValidName`, `isStrongPassword`, `containsEmoji`, the `*_MIN/MAX_LENGTH` constants) rather than re-implementing rules in zod from scratch, so the frontend can't drift from what `register.dto.ts` actually enforces. Email *format* validity is deliberately not duplicated (see `packages/shared/src/validation/email.ts`) — only the shared length cap plus zod's own format check are applied client-side, with the backend's `400` as the authoritative answer. `registerSchema` adds a `confirmPassword` field that exists only in the zod shape (cross-field `refine`) and is stripped before the payload is sent — the backend has no concept of it.
 - **The `WEAK_PASSWORD_WARNING` flow is handled inline, not with a modal.** On a `422` with `code === 'WEAK_PASSWORD_WARNING'`, the register form sets local state and renders a warning `Alert` with a "use this password anyway" button that resubmits the same form values plus `acknowledgeWeakPassword: true`. Editing the password field afterward clears the warning — an acknowledgement shouldn't silently carry over to a different password the user typed next.
-- **`Header` is now `useProfile()`/`useLogout()`-driven**, replacing the 5.1 static "Log in" placeholder. Tickets/Account links and a name + Log out control render only when there's a session; Log in/Sign up render only when there isn't. Tickets/Account are hidden rather than shown-and-left-to-404 for logged-out visitors, since both routes will require auth once built.
+- **Register's fields validate at different times, deliberately.** firstName/lastName/email use `mode: "onTouched"` — validate once the field is first left, then live after that. Password and confirmPassword instead call `trigger()` manually inside their own `onChange` handlers, validating from the first keystroke — password to drive the live `PasswordRequirements` checklist, confirmPassword so a mismatch shows up immediately rather than waiting for blur or submit. `packages/shared/src/validation/password.ts` now exports the individual checks (`hasMinLength`/`hasUppercase`/`hasLowercase`/`hasDigit`/`hasSpecialChar`) alongside `isStrongPassword` (which just composes them) specifically so this checklist can't drift from what the backend enforces. Create-account intentionally stays enabled regardless of password strength — the checklist plus submit-time errors already explain what's wrong; a disabled button would only hide that information, not add any.
+- **`PasswordInput` (`components/ui/`) wraps `Input` with a show/hide toggle**, built directly as a `ui/` primitive rather than starting in a route's `_components/` — both `/login` and `/register` need it immediately, and Step 5.4's account password-change will be a third consumer.
+- **`Header`'s logged-in state is a `UserMenu` dropdown, not inline text.** A user-icon button opens a menu with a non-clickable "Signed in as {firstName}" label, Account, and Log out — closes on outside click, `Escape`, or picking an item. `firstName` previously sat directly in the nav next to Tickets, sharing its color/spacing, which made it read as a (non-functional) nav link; moving it into the dropdown as a label fixes that. Tickets stays as an ordinary top-level link, shown only when there's a session (hidden rather than shown-and-left-to-404 for logged-out visitors, since it'll require auth once built).
+- **`backendFetch` (`lib/server/backend-client.ts`) turns a genuinely unreachable backend into a normal `503` Response**, not an uncaught rejection — `fetch()` itself rejects (not resolves with a 4xx/5xx) on connection-refused/DNS-failure, and nothing was catching that, so Next fell back to its own generic non-JSON `500` and `authClient.postAuth` crashed trying to `res.json()` it. Every caller (register/login route handlers, `refreshTokens`, the `/api/backend` proxy) now only ever handles a `Response` object. `refreshTokens` deliberately does *not* clear session cookies on this specific `503` — only on a real refresh rejection — so a transient outage can't silently log someone out of an otherwise-valid session.
+- **Toast notifications use `sonner`**, mounted in `Providers` and styled via its CSS-variable API (`--normal-*`/`--success-*`) mapped onto this app's own `@theme` tokens rather than sonner's built-in `richColors` palette — toasts read as part of this app, not a generic library default. Register fires a green/`accent-done`-bordered `toast.success()` right before its redirect (survives the navigation since `Toaster` lives at the layout level); login fires a neutral `toast()` ("Welcome back!") using the same dark styling as everything else, not the success color, since it's a greeting rather than a confirmation.
 - **Post-login/register redirect target is `/`,** not a dedicated dashboard — there's no ticket list or account page yet (Steps 5.4/5.6). The home page's `AuthStatusBanner` (a small client component, kept separate so `app/page.tsx` itself stays a server component) shows a login/register prompt when logged out or a "Welcome back" note when logged in, so landing on `/` after auth isn't a dead end. `proxy.ts` also supports a `?redirectTo=` query param for when a protected route eventually bounces someone to `/login` first.
 
 ## Deployment

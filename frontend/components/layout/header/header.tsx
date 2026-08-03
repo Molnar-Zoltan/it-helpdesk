@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useProfile } from "@/lib/queries/use-profile";
 import { useLogout } from "@/lib/mutations/use-logout";
-import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/layout/user-menu";
 
 export function Header() {
   const router = useRouter();
@@ -23,47 +23,31 @@ export function Header() {
 
         <nav className="flex items-center gap-6">
           {/*
-            Tickets/Account only make sense once there's a session — both
-            routes will require auth once built (5.4+), so there's no point
-            showing a logged-out visitor a link that just bounces them to
-            /login.
+            Tickets only makes sense once there's a session — the route will
+            require auth once built (5.4+), so there's no point showing a
+            logged-out visitor a link that just bounces them to /login.
+            Account and Log out now live inside UserMenu's dropdown rather
+            than as separate nav items.
           */}
           {profile && (
-            <>
-              <Link
-                href="/tickets"
-                className="text-sm text-text-secondary transition-colors hover:text-text"
-              >
-                Tickets
-              </Link>
-              <Link
-                href="/account"
-                className="text-sm text-text-secondary transition-colors hover:text-text"
-              >
-                Account
-              </Link>
-            </>
+            <Link
+              href="/tickets"
+              className="text-sm text-text-secondary transition-colors hover:text-text"
+            >
+              Tickets
+            </Link>
           )}
 
           {isLoading ? null : profile ? (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-text-secondary">
-                {profile.firstName}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                className="px-0 py-0 text-sm font-normal hover:bg-transparent"
-                isLoading={logoutMutation.isPending}
-                onClick={() =>
-                  logoutMutation.mutate(undefined, {
-                    onSuccess: () => router.push("/"),
-                  })
-                }
-              >
-                Log out
-              </Button>
-            </div>
+            <UserMenu
+              firstName={profile.firstName}
+              isLoggingOut={logoutMutation.isPending}
+              onLogout={() =>
+                logoutMutation.mutate(undefined, {
+                  onSuccess: () => router.push("/"),
+                })
+              }
+            />
           ) : (
             <div className="flex items-center gap-4">
               <Link

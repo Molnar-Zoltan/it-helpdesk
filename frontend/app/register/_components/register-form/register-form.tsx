@@ -16,7 +16,7 @@ import {
   registerSchema,
   type RegisterFormValues,
 } from "@/lib/validation/auth-schemas";
-import { PasswordRequirements } from "../password-requirements";
+import { PasswordRequirements } from "@/components/ui/password-requirements";
 
 export function RegisterForm() {
   const router = useRouter();

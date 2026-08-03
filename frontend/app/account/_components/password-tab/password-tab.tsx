@@ -53,7 +53,7 @@ export function PasswordTab() {
       reset();
       setWeakPasswordWarning(false);
       toast.success(
-        "Password updated — you've been logged out of your other sessions.",
+        "Password updated. Your other sessions will be signed out the next time they try to refresh.",
       );
     } catch (error) {
       if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {
@@ -73,7 +73,8 @@ export function PasswordTab() {
       <div>
         <h2 className="text-lg font-semibold text-text">Password</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Changing your password signs you out of every other device.
+          Changing your password signs out your other sessions the next
+          time they try to refresh — this device stays signed in.
         </p>
       </div>
 
@@ -83,7 +84,13 @@ export function PasswordTab() {
             {...field}
             autoComplete="current-password"
             hasError={Boolean(errors.currentPassword)}
-            {...register("currentPassword")}
+            {...register("currentPassword", {
+              onChange: () => {
+                if (getValues("newPassword")) {
+                  void trigger("newPassword");
+                }
+              },
+            })}
           />
         )}
       </FormField>

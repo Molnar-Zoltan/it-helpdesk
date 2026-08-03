@@ -25,5 +25,13 @@ export const changePasswordSchema = z
   .refine((data) => data.newPassword === data.confirmNewPassword, {
     message: "Passwords don't match",
     path: ["confirmNewPassword"],
+  })
+  // Only catches an exact string match (unlike the backend, this can't
+  // bcrypt-compare against the stored hash) — a fast, honest-effort check
+  // that saves a round trip in the common case; the backend's hash-based
+  // check remains the authoritative one.
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: "New password must be different from your current password",
+    path: ["newPassword"],
   });
 export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;

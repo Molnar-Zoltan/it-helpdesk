@@ -81,7 +81,7 @@ export function RegisterForm() {
             <Input
               {...field}
               autoComplete="given-name"
-              placeholder="Jane"
+              placeholder="John"
               hasError={Boolean(errors.firstName)}
               {...register("firstName")}
             />

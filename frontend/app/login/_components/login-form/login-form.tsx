@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -40,6 +41,7 @@ export function LoginForm() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       await loginMutation.mutateAsync(values);
+      toast("Welcome back!");
       router.push(redirectTo);
     } catch {
       // Surfaced below via loginMutation.error — nothing else to do here.

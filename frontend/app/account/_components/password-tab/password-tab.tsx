@@ -54,6 +54,7 @@ export function PasswordTab() {
       setWeakPasswordWarning(false);
       toast.success(
         "Password updated. Your other sessions will be signed out the next time they try to refresh.",
+        { duration: 7000 },
       );
     } catch (error) {
       if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {

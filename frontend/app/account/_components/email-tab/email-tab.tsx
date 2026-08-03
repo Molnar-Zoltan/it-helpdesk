@@ -47,6 +47,7 @@ export function EmailTab({ profile }: EmailTabProps) {
       reset({ currentPassword: "", newEmail: values.newEmail });
       toast.success(
         "Email updated. Your other sessions will be signed out the next time they try to refresh.",
+        { duration: 7000 },
       );
     } catch {
       // Surfaced below via changeEmailMutation.error (e.g. wrong password,

@@ -64,3 +64,13 @@ export interface ChangeEmailPayload {
 export interface ChangeEmailResponse {
   message: string;
 }
+
+/** DELETE /users/me body. */
+export interface DeleteAccountPayload {
+  currentPassword: string;
+}
+
+/** DELETE /users/me response. */
+export interface DeleteAccountResponse {
+  message: string;
+}

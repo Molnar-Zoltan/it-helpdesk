@@ -5,10 +5,8 @@ import { ACCESS_TOKEN_COOKIE } from "@/lib/server/cookie-names";
  * Route prefixes that require an authenticated session. This is a UX
  * redirect only, not the real authorization boundary — that's the NestJS
  * backend verifying the JWT on every request through /api/backend's proxy.
- * Empty for now: Step 5.3 has no protected pages yet. 5.4's account pages
- * will be the first entries (e.g. "/account").
  */
-const PROTECTED_ROUTE_PREFIXES: string[] = [];
+const PROTECTED_ROUTE_PREFIXES: string[] = ["/account"];
 
 /** Routes only a logged-out visitor should see. */
 const AUTH_ONLY_ROUTES = ["/login", "/register"];
@@ -40,5 +38,5 @@ export function proxy(request: NextRequest) {
 // the proxy only runs for paths matched here. Add new protected route
 // prefixes to both this matcher and PROTECTED_ROUTE_PREFIXES together.
 export const config = {
-  matcher: ["/login", "/register"],
+  matcher: ["/login", "/register", "/account/:path*"],
 };

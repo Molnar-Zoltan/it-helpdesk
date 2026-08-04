@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import type { Role } from "@helpdesk/shared";
 
 /**
  * Merge conditional class names. We don't pull in tailwind-merge on top of
@@ -8,4 +9,15 @@ import { clsx, type ClassValue } from "clsx";
  */
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
+}
+
+const ROLE_LABELS: Record<Role, string> = {
+  CUSTOMER: "Customer",
+  AGENT: "Agent",
+  ADMIN: "Admin",
+};
+
+/** Display label for a Role enum value, e.g. "AGENT" -> "Agent". */
+export function formatRole(role: Role) {
+  return ROLE_LABELS[role];
 }

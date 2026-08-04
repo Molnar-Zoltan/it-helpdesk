@@ -4,6 +4,8 @@
 // unchanged, so `@helpdesk/shared`'s public API doesn't change.
 export type { Role, TicketStatus, TicketPriority } from './enums';
 
+export { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './auth-config';
+
 export type { DemoUser, DemoTicket, DemoMessage } from './demo-data';
 export {
   DEMO_PASSWORD,
@@ -25,6 +27,11 @@ export {
   isStrongPassword,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
+  hasMinLength,
+  hasUppercase,
+  hasLowercase,
+  hasDigit,
+  hasSpecialChar,
 } from './validation/password';
 export { isCommonPassword } from './validation/common-passwords';
 export { EMAIL_MAX_LENGTH } from './validation/email';

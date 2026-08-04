@@ -73,6 +73,9 @@ npm install
 cp backend/.env.example backend/.env
 # fill in DATABASE_URL, JWT secrets, GEMINI_API_KEY, REDIS_URL
 
+cp frontend/.env.example frontend/.env
+# defaults to BACKEND_API_URL=http://localhost:3001, fine for local dev
+
 docker-compose up -d                          # local Postgres + Redis
 npm run prisma:generate --workspace=backend
 npm run prisma:migrate --workspace=backend
@@ -129,7 +132,13 @@ Each app owns its own env file — see [`backend/.env.example`](backend/.env.exa
 | `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile keys for registration CAPTCHA |
 | `FRONTEND_URL` | Used for CORS config in the NestJS app |
 
-The frontend will get its own `frontend/.env.example` once it needs client-side config (e.g. the public Turnstile site key), following Next.js's `NEXT_PUBLIC_` convention.
+`frontend/.env.example` has one variable so far:
+
+| Variable | Purpose |
+|---|---|
+| `BACKEND_API_URL` | NestJS origin, e.g. `http://localhost:3001`. **Server-only** — deliberately not `NEXT_PUBLIC_`, since the browser never calls the backend directly, only this app's own `/api/auth/*` and `/api/backend/*` route handlers do (see [architecture.md](docs/architecture.md#frontend-api-layer--auth-state)). |
+
+It'll pick up more (e.g. a public Turnstile site key, `NEXT_PUBLIC_`-prefixed) once Step 7 lands.
 
 ## Project structure
 
@@ -168,6 +177,14 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
 **Left**
 
 5. ⬜ Frontend — Next.js UI for auth + ticket creation/viewing
+   - 5.1 ✅ App shell & design system — UI primitives (Button/Input/TextArea/FormField/Card/Badge/Alert/Spinner), Header/Footer, Tailwind v4 design tokens, `Providers` (TanStack Query) wired into the root layout
+   - 5.2 ✅ API client & auth state — BFF proxy pattern: `/api/auth/{register,login,logout,refresh}` route handlers own the httpOnly `hd_access_token`/`hd_refresh_token` cookies (never exposed to client JS), and a catch-all `/api/backend/[...path]` proxy injects the Bearer token server-side for everything else, transparently refreshing and retrying once on a `401`. Browser-side `apiClient` (`lib/api/client.ts`) always calls this app's own `/api/backend/*`, never the NestJS origin directly. `useProfile()` (`lib/queries/use-profile.ts`) is the single source of auth state — no separate auth context. `ACCESS_TOKEN_TTL_MS`/`REFRESH_TOKEN_TTL_MS` promoted from backend-only constants into `@helpdesk/shared` so cookie `maxAge` can't drift from real token lifetime.
+   - 5.3 ✅ Auth pages — `/login` and `/register`, `react-hook-form` + `zod` (`lib/validation/auth-schemas.ts`, wrapping `@helpdesk/shared`'s `isValidName`/`isStrongPassword`/`containsEmoji`/length constants so client rules can't drift from the backend DTOs). Register handles the backend's `422 WEAK_PASSWORD_WARNING` (HIBP soft-check) inline: a warning `Alert` with a "use this password anyway" button resubmits with `acknowledgeWeakPassword: true`, rather than blocking with a modal; editing the password afterward clears the warning. Register also validates firstName/lastName/email on blur then live (`mode: "onTouched"`), while password and confirm-password validate live from the first keystroke — the password field drives a live, per-criterion requirements checklist (`PasswordRequirements`, built on granular checks newly exported from `@helpdesk/shared`'s `validation/password.ts`) instead of a single pass/fail message. Both password fields use a new `PasswordInput` (`components/ui/`) with a show/hide toggle. Create-account intentionally stays enabled regardless of password strength — the checklist and submit-time errors already explain what's wrong, so disabling would only hide information. `proxy.ts` (Next 16's renamed `middleware.ts`) redirects an already-authenticated visitor away from `/login`/`/register`, scaffolded with an empty `PROTECTED_ROUTE_PREFIXES` list for 5.4 to extend. `Header` reads `useProfile()`/`useLogout()` for real — logged in shows Tickets plus a `UserMenu` dropdown (user icon → "Signed in as {firstName}", Account, Log out), logged out shows Log in/Sign up. Home page gained an `AuthStatusBanner` client component. `backendFetch` now converts a genuinely unreachable backend into a normal `503` response instead of an uncaught rejection, so register/login show a real "Unable to reach the server" message instead of crashing on `res.json()`. `sonner` added for toast notifications (themed via CSS variables onto the app's own design tokens, not its default richColors) — a green/accent-done success toast on registration, a neutral "Welcome back!" toast on login.
+   - 5.4 ⬜ Account pages
+   - 5.5 ⬜ Ticket creation
+   - 5.6 ⬜ Ticket list
+   - 5.7 ⬜ Ticket detail
+   - 5.8 ⬜ Docs pass
 6. ⬜ Redis login rate limiting (5 attempts / 15 min)
    - 6.1 Backend — `RateLimitGuard` on `/auth/login`
    - 6.2 Frontend — surface lockout state/messaging to the user

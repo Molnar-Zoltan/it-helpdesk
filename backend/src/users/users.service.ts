@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { isDemoUserId } from '@helpdesk/shared';
@@ -83,6 +84,14 @@ export class UsersService {
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid)
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
+
+    const isSameAsCurrent = await bcrypt.compare(
+      dto.newPassword,
+      user.passwordHash,
+    );
+    if (isSameAsCurrent) {
+      throw new BadRequestException(USERS_ERRORS.NEW_PASSWORD_SAME_AS_CURRENT);
+    }
 
     // Hard blocks (length, complexity, top-1000 list) already ran in the
     // DTO. This is a soft check: warn and require explicit confirmation,

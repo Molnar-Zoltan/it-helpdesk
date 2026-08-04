@@ -8,7 +8,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       <select
         ref={ref}
         className={cn(
-          "w-full rounded-md border bg-surface px-3 py-2 text-sm text-text",
+          "w-full cursor-pointer rounded-md border bg-surface px-3 py-2 text-sm text-text",
           "focus:outline-none focus:ring-2 focus:ring-offset-0",
           hasError
             ? "border-accent-danger focus:ring-accent-danger"

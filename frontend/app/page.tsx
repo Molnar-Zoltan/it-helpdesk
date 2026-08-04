@@ -9,9 +9,10 @@ const phases: Phase[] = [
   { label: "Auth & sessions", status: "done" },
   { label: "Account self-service", status: "done" },
   { label: "Manual ticket creation", status: "active" },
-  { label: "AI chat ticket path", status: "planned" },
   { label: "Rate limiting", status: "planned" },
+  { label: "Cloudflare Turnstile captcha", status: "planned" },
   { label: "Agent dashboard", status: "planned" },
+  { label: "AI chat ticket path", status: "planned" },
 ];
 
 const statusStyles: Record<Phase["status"], string> = {

@@ -47,3 +47,14 @@ export {
   TICKET_REOPEN_REASON_MIN_LENGTH,
   TICKET_REOPEN_REASON_MAX_LENGTH,
 } from './validation/ticket';
+
+export type { PaginatedResult, TicketSortableField, SortOrder } from './pagination';
+export {
+  DEFAULT_PAGE,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  TICKET_SORTABLE_FIELDS,
+  DEFAULT_TICKET_SORT_BY,
+  SORT_ORDERS,
+  DEFAULT_SORT_ORDER,
+} from './pagination';

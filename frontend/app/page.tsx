@@ -39,16 +39,16 @@ export default function Home() {
         </div>
 
         <h1 className="mt-6 text-3xl font-semibold leading-tight tracking-tight text-[#E7ECF1] sm:text-4xl">
-          The backend comes first.
+          Support tickets, filed by hand or by AI.
         </h1>
 
         <p className="mt-4 text-base leading-7 text-[#8A96A6]">
-          This is an IT helpdesk platform being built vertically — one
-          feature taken end to end through the database, API, and tests —
-          before any UI is attached to it. Auth and account management are
-          live and tested; ticket creation is next. This screen will stay
-          in place until there&apos;s a stable backend worth building a
-          frontend on top of.
+          An IT helpdesk platform where tickets can be filed through a form
+          or a conversation with an AI assistant that extracts the details
+          automatically — both paths run through the same validation, so
+          the AI can never create a ticket the form wouldn&apos;t allow.
+          It&apos;s under active development: auth and account management
+          are live below, ticket creation is being built next.
         </p>
 
         <AuthStatusBanner />

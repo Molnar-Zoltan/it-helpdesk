@@ -16,13 +16,18 @@ import {
   NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE,
   type ChangePasswordFormValues,
 } from "@/lib/validation/account-schemas";
+import { DemoAccountNotice } from "../demo-account-notice";
+
+interface PasswordTabProps {
+  isDemo: boolean;
+}
 
 // currentPassword required + revokes every other active session — matches
 // the backend's design (see docs/architecture.md's account self-service
 // table). The WEAK_PASSWORD_WARNING soft-confirm flow mirrors register's
 // (Step 5.3): a 422 isn't a hard failure, it's a breach warning the user
 // can acknowledge and resubmit past.
-export function PasswordTab() {
+export function PasswordTab({ isDemo }: PasswordTabProps) {
   const changePasswordMutation = useChangePassword();
   const [weakPasswordWarning, setWeakPasswordWarning] = useState(false);
 
@@ -80,12 +85,15 @@ export function PasswordTab() {
         </p>
       </div>
 
+      {isDemo && <DemoAccountNotice />}
+
       <FormField label="Current password" error={errors.currentPassword?.message}>
         {(field) => (
           <PasswordInput
             {...field}
             autoComplete="current-password"
             hasError={Boolean(errors.currentPassword)}
+            disabled={isDemo}
             {...register("currentPassword", {
               onChange: () => {
                 if (getValues("newPassword")) {
@@ -110,6 +118,7 @@ export function PasswordTab() {
               {...field}
               autoComplete="new-password"
               hasError={Boolean(errors.newPassword)}
+              disabled={isDemo}
               {...register("newPassword", {
                 onChange: () => {
                   // A changed password invalidates a prior breach
@@ -136,6 +145,7 @@ export function PasswordTab() {
             {...field}
             autoComplete="new-password"
             hasError={Boolean(errors.confirmNewPassword)}
+            disabled={isDemo}
             {...register("confirmNewPassword", {
               onChange: () => void trigger("confirmNewPassword"),
             })}
@@ -167,6 +177,7 @@ export function PasswordTab() {
 
       <Button
         type="submit"
+        disabled={isDemo}
         isLoading={changePasswordMutation.isPending && !weakPasswordWarning}
         className="self-start"
       >

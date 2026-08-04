@@ -14,15 +14,17 @@ import {
   type ChangeEmailFormValues,
 } from "@/lib/validation/account-schemas";
 import type { UserProfile } from "@/lib/api/types";
+import { DemoAccountNotice } from "../demo-account-notice";
 
 interface EmailTabProps {
   profile: UserProfile;
+  isDemo: boolean;
 }
 
 // currentPassword required + revokes every other active session — same
 // re-verification pattern as the Password tab (see docs/architecture.md's
 // account self-service table). newEmail defaults to the current address.
-export function EmailTab({ profile }: EmailTabProps) {
+export function EmailTab({ profile, isDemo }: EmailTabProps) {
   const changeEmailMutation = useChangeEmail();
 
   const {
@@ -47,7 +49,7 @@ export function EmailTab({ profile }: EmailTabProps) {
   // submittable state. The button should only enable once the email has
   // genuinely changed AND a password has been entered to confirm it.
   const canSubmit =
-    newEmailValue !== profile.email && currentPasswordValue.length > 0;
+    !isDemo && newEmailValue !== profile.email && currentPasswordValue.length > 0;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -74,6 +76,8 @@ export function EmailTab({ profile }: EmailTabProps) {
         </p>
       </div>
 
+      {isDemo && <DemoAccountNotice />}
+
       <FormField label="New email" error={errors.newEmail?.message}>
         {(field) => (
           <Input
@@ -81,6 +85,7 @@ export function EmailTab({ profile }: EmailTabProps) {
             type="email"
             autoComplete="email"
             hasError={Boolean(errors.newEmail)}
+            disabled={isDemo}
             {...register("newEmail")}
           />
         )}
@@ -96,6 +101,7 @@ export function EmailTab({ profile }: EmailTabProps) {
             {...field}
             autoComplete="current-password"
             hasError={Boolean(errors.currentPassword)}
+            disabled={isDemo}
             {...register("currentPassword")}
           />
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { isDemoUserId } from "@helpdesk/shared";
 import { Tabs } from "@/components/ui/tabs";
 import type { TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -80,10 +81,18 @@ export function AccountView() {
       />
 
       <Card>
-        {activeTab === "name" && <NameTab profile={profile} />}
-        {activeTab === "email" && <EmailTab profile={profile} />}
-        {activeTab === "password" && <PasswordTab />}
-        {activeTab === "delete" && <DeleteAccountTab />}
+        {activeTab === "name" && (
+          <NameTab profile={profile} isDemo={isDemoUserId(profile.id)} />
+        )}
+        {activeTab === "email" && (
+          <EmailTab profile={profile} isDemo={isDemoUserId(profile.id)} />
+        )}
+        {activeTab === "password" && (
+          <PasswordTab isDemo={isDemoUserId(profile.id)} />
+        )}
+        {activeTab === "delete" && (
+          <DeleteAccountTab isDemo={isDemoUserId(profile.id)} />
+        )}
       </Card>
     </div>
   );

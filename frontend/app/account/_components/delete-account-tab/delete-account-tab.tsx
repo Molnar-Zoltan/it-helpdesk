@@ -15,6 +15,11 @@ import {
   deleteAccountSchema,
   type DeleteAccountFormValues,
 } from "@/lib/validation/account-schemas";
+import { DemoAccountNotice } from "../demo-account-notice";
+
+interface DeleteAccountTabProps {
+  isDemo: boolean;
+}
 
 // currentPassword required, confirmed via a modal per the settled 5.4
 // design decision — password re-verification is already required, so a
@@ -23,7 +28,7 @@ import {
 // (anonymized, not deleted) per UsersService.deleteAccount — see
 // docs/schema.md's GDPR section — but that's backend behavior with no
 // frontend surface, so it isn't mentioned in this copy.
-export function DeleteAccountTab() {
+export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
   const router = useRouter();
   const deleteAccountMutation = useDeleteAccount();
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,10 +74,13 @@ export function DeleteAccountTab() {
         </p>
       </div>
 
+      {isDemo && <DemoAccountNotice />}
+
       <Button
         type="button"
         variant="danger"
         className="self-start"
+        disabled={isDemo}
         onClick={() => setModalOpen(true)}
       >
         Delete account

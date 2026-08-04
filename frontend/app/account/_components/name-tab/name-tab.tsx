@@ -13,15 +13,17 @@ import {
   type UpdateNameFormValues,
 } from "@/lib/validation/account-schemas";
 import type { UserProfile } from "@/lib/api/types";
+import { DemoAccountNotice } from "../demo-account-notice";
 
 interface NameTabProps {
   profile: UserProfile;
+  isDemo: boolean;
 }
 
 // No currentPassword required and no other-session revocation — name isn't
 // security-sensitive, per the backend's PATCH /users/me design (see
 // docs/architecture.md's account self-service table).
-export function NameTab({ profile }: NameTabProps) {
+export function NameTab({ profile, isDemo }: NameTabProps) {
   const updateNameMutation = useUpdateName();
 
   const {
@@ -59,12 +61,15 @@ export function NameTab({ profile }: NameTabProps) {
         </p>
       </div>
 
+      {isDemo && <DemoAccountNotice />}
+
       <FormField label="First name" error={errors.firstName?.message}>
         {(field) => (
           <Input
             {...field}
             autoComplete="given-name"
             hasError={Boolean(errors.firstName)}
+            disabled={isDemo}
             {...register("firstName")}
           />
         )}
@@ -76,6 +81,7 @@ export function NameTab({ profile }: NameTabProps) {
             {...field}
             autoComplete="family-name"
             hasError={Boolean(errors.lastName)}
+            disabled={isDemo}
             {...register("lastName")}
           />
         )}
@@ -87,7 +93,7 @@ export function NameTab({ profile }: NameTabProps) {
 
       <Button
         type="submit"
-        disabled={!isDirty}
+        disabled={isDemo || !isDirty}
         isLoading={updateNameMutation.isPending}
         className="self-start"
       >

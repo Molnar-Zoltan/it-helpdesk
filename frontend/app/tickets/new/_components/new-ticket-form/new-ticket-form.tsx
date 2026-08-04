@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TICKET_DESCRIPTION_MAX_LENGTH } from "@helpdesk/shared";
@@ -11,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { useCreateTicket } from "@/lib/mutations/use-create-ticket";
+import { cn } from "@/lib/utils";
 import {
   createTicketSchema,
   TICKET_PRIORITIES,
@@ -123,9 +125,44 @@ export function NewTicketForm() {
         <Alert tone="danger">{createTicketMutation.error.message}</Alert>
       )}
 
-      <Button type="submit" isLoading={createTicketMutation.isPending} className="self-start">
-        Submit ticket
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button type="submit" isLoading={createTicketMutation.isPending}>
+          Submit ticket
+        </Button>
+
+        {/*
+          Button (components/ui/button) has no asChild/slot support for
+          wrapping a Next Link, so this mirrors its "ghost" variant classes
+          directly on a real <a> instead -- same reasoning as the
+          link-styled CTAs on the tickets list page. A real link (rather
+          than a button that calls router.push) keeps ctrl/cmd-click and
+          middle-click ("open in new tab") working.
+
+          "enabled:" (which Button's ghost variant uses for its hover
+          state) is a button/input/select/textarea-only pseudo-class --
+          it doesn't apply to anchors, so the disabled-while-submitting
+          state below is hand-rolled with aria-disabled + a click guard
+          instead of the native disabled attribute an <a> can't have.
+        */}
+        <Link
+          href="/tickets"
+          aria-disabled={createTicketMutation.isPending}
+          tabIndex={createTicketMutation.isPending ? -1 : undefined}
+          onClick={(event) => {
+            if (createTicketMutation.isPending) event.preventDefault();
+          }}
+          className={cn(
+            "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-text-secondary transition-colors",
+            "hover:bg-surface hover:text-text",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-secondary",
+            createTicketMutation.isPending
+              ? "pointer-events-none cursor-not-allowed opacity-50"
+              : "cursor-pointer",
+          )}
+        >
+          Cancel
+        </Link>
+      </div>
     </form>
   );
 }

@@ -28,18 +28,19 @@ export function useDeleteAccount() {
       // app/api/auth/logout/route.ts — so this is safe either way.
       await authClient.logout().catch(() => {});
 
-      // Cookies alone weren't enough either: Header's useProfile() is an
-      // *active*, already-mounted query observer, and queryClient.clear()
-      // only removes cached data — it doesn't make an active observer
-      // refetch on its own. Without this, the header kept showing the
-      // stale logged-in state until something else (e.g. a hard refresh)
-      // forced a fresh check. Explicitly refetching with cookies now
-      // cleared gets a 401, which is what actually flips the header.
-      await queryClient.refetchQueries({ queryKey: PROFILE_QUERY_KEY });
-
-      // Now safe to wipe everything else — nothing cached against the
-      // deleted account is valid.
+      // Wipe everything first — nothing cached against the deleted
+      // account is valid.
       queryClient.clear();
+
+      // Then, last, explicitly refetch the profile query. This has to
+      // come AFTER clear(), not before: clear() only removes cached
+      // data, it doesn't make Header's already-mounted, active
+      // useProfile() observer refetch on its own — so if this ran before
+      // clear(), the freshly-fetched (now correctly logged-out) result
+      // would just get wiped out again by clear() immediately after,
+      // leaving the observer back in limbo. Run last, its result is what
+      // actually sticks and flips the header (401, cookies are gone now).
+      await queryClient.refetchQueries({ queryKey: PROFILE_QUERY_KEY });
     },
   });
 }

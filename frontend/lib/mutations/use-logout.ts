@@ -10,17 +10,17 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => authClient.logout(),
     onSuccess: async () => {
-      // queryClient.clear() only removes cached data — it doesn't make an
-      // already-mounted, active observer (Header's useProfile()) refetch
-      // on its own, so the header kept showing the stale logged-in state
-      // until something else forced a fresh check (found while fixing the
-      // identical issue on account deletion). Explicitly refetching with
-      // cookies now cleared gets a 401, which is what actually flips it.
-      await queryClient.refetchQueries({ queryKey: PROFILE_QUERY_KEY });
-
-      // Wipe everything else — a logged-out session shouldn't hold onto
+      // Wipe everything first — a logged-out session shouldn't hold onto
       // another user's cached data in memory.
       queryClient.clear();
+
+      // Then, last, explicitly refetch the profile query — same ordering
+      // fix as useDeleteAccount. clear() only removes cached data, it
+      // doesn't make Header's active useProfile() observer refetch on its
+      // own; running the refetch afterward (not before) means its result
+      // is what actually sticks, rather than being immediately wiped out
+      // by a trailing clear().
+      await queryClient.refetchQueries({ queryKey: PROFILE_QUERY_KEY });
     },
   });
 }

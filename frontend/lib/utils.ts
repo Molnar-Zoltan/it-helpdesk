@@ -21,3 +21,14 @@ const ROLE_LABELS: Record<Role, string> = {
 export function formatRole(role: Role) {
   return ROLE_LABELS[role];
 }
+
+/** Formats an ISO 8601 timestamp (e.g. Ticket.createdAt) for display,
+ * e.g. "Aug 4, 2026". Not relative/"time ago" -- a plain date is easier to
+ * scan in a list and doesn't need re-rendering on a timer to stay accurate. */
+export function formatDate(isoDate: string) {
+  return new Date(isoDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}

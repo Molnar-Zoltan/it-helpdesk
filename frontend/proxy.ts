@@ -6,7 +6,7 @@ import { ACCESS_TOKEN_COOKIE } from "@/lib/server/cookie-names";
  * redirect only, not the real authorization boundary — that's the NestJS
  * backend verifying the JWT on every request through /api/backend's proxy.
  */
-const PROTECTED_ROUTE_PREFIXES: string[] = ["/account"];
+const PROTECTED_ROUTE_PREFIXES: string[] = ["/account", "/tickets"];
 
 /** Routes only a logged-out visitor should see. */
 const AUTH_ONLY_ROUTES = ["/login", "/register"];
@@ -38,5 +38,5 @@ export function proxy(request: NextRequest) {
 // the proxy only runs for paths matched here. Add new protected route
 // prefixes to both this matcher and PROTECTED_ROUTE_PREFIXES together.
 export const config = {
-  matcher: ["/login", "/register", "/account/:path*"],
+  matcher: ["/login", "/register", "/account/:path*", "/tickets/:path*"],
 };

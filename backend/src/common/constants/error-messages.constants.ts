@@ -21,6 +21,8 @@ export const USERS_ERRORS = {
     'This is a shared demo account and cannot be modified or deleted',
   NEW_PASSWORD_SAME_AS_CURRENT:
     'New password must be different from your current password',
+  EMAIL_SAME_AS_CURRENT:
+    'New email must be different from your current email',
 } as const;
 
 export const TICKETS_ERRORS = {

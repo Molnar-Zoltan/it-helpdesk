@@ -41,6 +41,7 @@ export function Header() {
           {isLoading ? null : profile ? (
             <UserMenu
               firstName={profile.firstName}
+              role={profile.role}
               isLoggingOut={logoutMutation.isPending}
               onLogout={() =>
                 logoutMutation.mutate(undefined, {

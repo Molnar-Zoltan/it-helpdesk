@@ -7,7 +7,9 @@ import type { TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/queries/use-profile";
+import { formatRole } from "@/lib/utils";
 import { NameTab } from "../name-tab";
 import { EmailTab } from "../email-tab";
 import { PasswordTab } from "../password-tab";
@@ -67,7 +69,10 @@ export function AccountView() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-text">Account</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-text">Account</h1>
+          <Badge>{formatRole(profile.role)}</Badge>
+        </div>
         <p className="mt-1 text-sm text-text-secondary">
           Manage your profile, credentials, and account data.
         </p>

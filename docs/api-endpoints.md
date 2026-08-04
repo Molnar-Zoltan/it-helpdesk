@@ -109,7 +109,7 @@ Changes the account email. Requires `currentPassword`. Revokes every other activ
 ```json
 { "message": "Email updated" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match; `409` if `newEmail` is already registered to another account; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+**Errors**: `401` if `currentPassword` doesn't match; `400` if `newEmail` is the same as the account's current email; `409` if `newEmail` is already registered to another account; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `DELETE /users/me`
 Deletes the account. Requires `currentPassword`. This is a hard delete of the `User` row and all their `RefreshToken`s (cascade); their `Ticket`/`Message` history is **not** deleted — see [schema.md](schema.md#gdpr--account-deletion-behavior) for the anonymization behavior.

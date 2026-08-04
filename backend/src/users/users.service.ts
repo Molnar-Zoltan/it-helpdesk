@@ -134,6 +134,15 @@ export class UsersService {
     if (!valid)
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
 
+    // Checked before the uniqueness lookup below: without this, resubmitting
+    // your own current email would find yourself in that lookup and surface
+    // a confusing "email already in use" 409 instead of a clear "unchanged"
+    // error. Exact-string comparison, matching the rest of the codebase
+    // (no email normalization/lowercasing happens anywhere else either).
+    if (dto.newEmail === user.email) {
+      throw new BadRequestException(USERS_ERRORS.EMAIL_SAME_AS_CURRENT);
+    }
+
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.newEmail },
     });

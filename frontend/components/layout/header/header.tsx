@@ -23,11 +23,10 @@ export function Header() {
 
         <nav className="flex items-center gap-6">
           {/*
-            Tickets only makes sense once there's a session — the route will
-            require auth once built (5.4+), so there's no point showing a
-            logged-out visitor a link that just bounces them to /login.
-            Account and Log out now live inside UserMenu's dropdown rather
-            than as separate nav items.
+            Tickets only makes sense once there's a session, so there's no
+            point showing a logged-out visitor a link that just bounces
+            them to /login. Account and Log out now live inside UserMenu's
+            dropdown rather than as separate nav items.
           */}
           {profile && (
             <Link

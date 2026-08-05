@@ -16,7 +16,7 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
-import { PaginatedResult } from '../common/types/paginated-result.type';
+import type { PaginatedResult } from '@helpdesk/shared';
 
 @Injectable()
 export class TicketsService {
@@ -154,7 +154,17 @@ export class TicketsService {
     role: Role,
     dto: CreateMessageDto,
   ) {
-    await this.assertCanAccessMessages(ticketId, userId, role);
+    const ticket = await this.assertCanAccessMessages(ticketId, userId, role);
+
+    // Posting is blocked once a ticket is CLOSED -- a closed ticket isn't
+    // being actively worked, so a new message would silently sit unread
+    // until someone reopens it anyway. Reading the existing thread
+    // (getMessages) is unaffected; only new writes are blocked.
+    if (ticket.status === TicketStatus.CLOSED) {
+      throw new BadRequestException(
+        TICKETS_ERRORS.TICKET_CLOSED_CANNOT_MESSAGE,
+      );
+    }
 
     return this.prisma.message.create({
       data: {
@@ -169,6 +179,8 @@ export class TicketsService {
   async getMessages(ticketId: string, userId: string, role: Role) {
     await this.assertCanAccessMessages(ticketId, userId, role);
 
+    // Status isn't checked here (unlike addMessage) -- reading a closed
+    // ticket's thread should always work, only new writes are blocked.
     // Chronological (oldest first) — this is a conversation thread meant to
     // be read top-to-bottom, unlike the ticket list's newest-first default.
     return this.prisma.message.findMany({
@@ -187,12 +199,16 @@ export class TicketsService {
    * will likely need to evolve for the agent queue. Same 404-not-403
    * pattern as the rest of this service: "doesn't exist" and "not yours"
    * look identical to the caller.
+   *
+   * Returns the ticket (rather than just throwing/void) so addMessage can
+   * inspect its status for the closed-ticket guard above without a second
+   * query.
    */
   private async assertCanAccessMessages(
     ticketId: string,
     userId: string,
     role: Role,
-  ) {
+  ): Promise<Ticket> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
     });
@@ -203,5 +219,7 @@ export class TicketsService {
     if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
       throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
     }
+
+    return ticket;
   }
 }

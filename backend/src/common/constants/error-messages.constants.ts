@@ -29,4 +29,6 @@ export const TICKETS_ERRORS = {
   TICKET_NOT_FOUND: 'Ticket not found',
   TICKET_ALREADY_CLOSED: 'Ticket is already closed',
   TICKET_NOT_CLOSED: 'Ticket is not closed',
+  TICKET_CLOSED_CANNOT_MESSAGE:
+    'Cannot post a message on a closed ticket. Reopen it first.',
 } as const;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useProfile } from "@/lib/queries/use-profile";
 import { useLogout } from "@/lib/mutations/use-logout";
 import { UserMenu } from "@/components/layout/user-menu";
+import { Spinner } from "@/components/ui/spinner";
 
 export function Header() {
   const router = useRouter();
@@ -37,7 +38,9 @@ export function Header() {
             </Link>
           )}
 
-          {isLoading ? null : profile ? (
+          {isLoading ? (
+            <Spinner label="Loading account" />
+          ) : profile ? (
             <UserMenu
               firstName={profile.firstName}
               role={profile.role}

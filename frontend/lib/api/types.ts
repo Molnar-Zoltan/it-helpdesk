@@ -94,7 +94,10 @@ export interface CreateTicketPayload {
 /** POST /tickets response — the created Ticket row, per
  * TicketsService.create() / schema.prisma's Ticket model. agentId/status
  * are always null/OPEN on creation (no assignment until Step 8), but
- * typed fully here since GET endpoints will return the same shape. */
+ * typed fully here since GET endpoints will return the same shape.
+ * close/reopen fields are always null on a freshly created ticket, but
+ * populated once PATCH /tickets/:id/close or /reopen has run — the
+ * detail page (Step 5.7) is the first consumer that needs to read them. */
 export interface TicketResponse {
   id: string;
   title: string;
@@ -105,6 +108,12 @@ export interface TicketResponse {
   updatedAt: string;
   customerId: string | null;
   agentId: string | null;
+  closeReason: string | null;
+  closedAt: string | null;
+  closedBy: string | null;
+  reopenReason: string | null;
+  reopenedAt: string | null;
+  reopenedBy: string | null;
 }
 
 /** GET /tickets query params, per FindTicketsQueryDto. All optional —
@@ -120,3 +129,31 @@ export interface TicketListQuery {
 
 /** GET /tickets response. */
 export type TicketListResponse = PaginatedResult<TicketResponse>;
+
+/** PATCH /tickets/:id/close body. */
+export interface CloseTicketPayload {
+  reason: string;
+}
+
+/** PATCH /tickets/:id/reopen body. */
+export interface ReopenTicketPayload {
+  reason: string;
+}
+
+/** POST /tickets/:id/messages body. */
+export interface CreateMessagePayload {
+  content: string;
+}
+
+/** Shape returned by both POST /tickets/:id/messages and
+ * GET /tickets/:id/messages, per schema.prisma's Message model. senderId
+ * is nullable (a deleted user's messages survive with senderId set to
+ * null), so the UI can't assume every message has an identifiable sender. */
+export interface MessageResponse {
+  id: string;
+  content: string;
+  isAiGenerated: boolean;
+  createdAt: string;
+  ticketId: string;
+  senderId: string | null;
+}

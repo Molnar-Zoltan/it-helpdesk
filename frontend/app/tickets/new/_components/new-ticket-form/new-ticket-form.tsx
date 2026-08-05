@@ -138,6 +138,12 @@ export function NewTicketForm() {
           than a button that calls router.push) keeps ctrl/cmd-click and
           middle-click ("open in new tab") working.
 
+          Uses hover:bg-surface-raised, not Button ghost's own
+          hover:bg-surface -- this link sits inside a Card (bg-surface),
+          so hovering to that same color would be invisible. Same fix
+          UserMenu's dropdown items already apply for the same reason
+          (their bg-surface-raised container hovers to bg-surface instead).
+
           "enabled:" (which Button's ghost variant uses for its hover
           state) is a button/input/select/textarea-only pseudo-class --
           it doesn't apply to anchors, so the disabled-while-submitting
@@ -153,7 +159,7 @@ export function NewTicketForm() {
           }}
           className={cn(
             "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-text-secondary transition-colors",
-            "hover:bg-surface hover:text-text",
+            "hover:bg-surface-raised hover:text-text",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-secondary",
             createTicketMutation.isPending
               ? "pointer-events-none cursor-not-allowed opacity-50"

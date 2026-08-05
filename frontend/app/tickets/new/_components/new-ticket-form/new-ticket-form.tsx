@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,8 +18,6 @@ import {
   TICKET_PRIORITIES,
   type CreateTicketFormValues,
 } from "@/lib/validation/ticket-schemas";
-import type { TicketResponse } from "@/lib/api/types";
-import { TicketCreatedNotice } from "../ticket-created-notice";
 
 const PRIORITY_LABELS: Record<(typeof TICKET_PRIORITIES)[number], string> = {
   LOW: "Low",
@@ -35,16 +33,12 @@ const DEFAULT_VALUES: CreateTicketFormValues = {
 };
 
 export function NewTicketForm() {
-  // Holds the just-created ticket so we can swap the form for
-  // TicketCreatedNotice — see that component for why this isn't a
-  // redirect.
-  const [createdTicket, setCreatedTicket] = useState<TicketResponse | null>(null);
+  const router = useRouter();
   const createTicketMutation = useCreateTicket();
 
   const {
     register,
     handleSubmit,
-    reset,
     watch,
     formState: { errors },
   } = useForm<CreateTicketFormValues>({
@@ -57,24 +51,18 @@ export function NewTicketForm() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const ticket = await createTicketMutation.mutateAsync(values);
-      setCreatedTicket(ticket);
+      // /tickets/:id (detail, Step 5.7) now exists, so this redirects
+      // straight to the new ticket instead of the old inline
+      // TicketCreatedNotice stopgap -- matches how the rest of the app
+      // behaves (land on the thing you just created), same as
+      // register/login's post-auth redirect. "Create another" is still
+      // one click away via /tickets/new in the header/list, so nothing
+      // from that flow is lost.
+      router.push(`/tickets/${ticket.id}`);
     } catch {
       // Surfaced below via createTicketMutation.error.
     }
   });
-
-  if (createdTicket) {
-    return (
-      <TicketCreatedNotice
-        ticket={createdTicket}
-        onCreateAnother={() => {
-          setCreatedTicket(null);
-          createTicketMutation.reset();
-          reset(DEFAULT_VALUES);
-        }}
-      />
-    );
-  }
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">

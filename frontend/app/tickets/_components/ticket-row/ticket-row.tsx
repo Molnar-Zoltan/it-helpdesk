@@ -8,7 +8,7 @@ export function TicketRow({ ticket }: TicketRowProps) {
   return (
     <Link
       href={`/tickets/${ticket.id}`}
-      className="flex flex-col gap-2 border-b border-border py-4 transition-colors last:border-b-0 hover:bg-surface-raised"
+      className="flex flex-col gap-2 border-b border-border px-4 py-4 transition-colors last:border-b-0 hover:bg-surface-raised"
     >
       <div className="flex items-start justify-between gap-4">
         <h3 className="font-medium text-text">{ticket.title}</h3>

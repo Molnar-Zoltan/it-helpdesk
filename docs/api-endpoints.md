@@ -29,7 +29,7 @@ Authenticates with email/password and returns a fresh token pair.
 { "email": "user@example.com", "password": "string" }
 ```
 **Response** `200`: same shape as `/auth/register`.
-**Errors**: `401` on invalid credentials.
+**Errors**: `401` on invalid credentials; `429` `LOGIN_RATE_LIMITED` if this email+IP pair has hit 5 failed attempts within the last 15 minutes — see [Login rate limiting](#login-rate-limiting) below.
 
 ### `POST /auth/refresh`
 Rotates a refresh token: the one supplied is revoked, and a new access/refresh pair is issued.
@@ -49,6 +49,20 @@ Revokes a refresh token, ending that session.
 { "refreshToken": "string" }
 ```
 **Response** `200`, no meaningful body.
+
+### Login rate limiting
+
+`POST /auth/login` is guarded by a Redis-backed limiter (`LoginRateLimitGuard`): 5 failed attempts within a 15-minute window for a given email+IP pair returns `429`:
+
+```json
+{ "statusCode": 429, "error": "LOGIN_RATE_LIMITED", "message": "Too many login attempts. Please try again later.", "retryAfterSeconds": 612 }
+```
+
+`retryAfterSeconds` is read straight off the Redis key's remaining TTL, so it's always accurate to the second rather than a rounded-down window estimate — the frontend's login form uses it to show a live countdown.
+
+Keyed on email+IP together (`ratelimit:login:{emailHash}:{ipHash}`, both SHA-256-truncated so raw emails/IPs never sit in Redis), not either alone — IP-only would let one bad actor lock out everyone behind the same NAT, email-only would let someone hammer a single account from many IPs. Only *failed* attempts increment the counter, and a successful login resets it — a mistyped password early on doesn't count against the rest of the window once the user gets it right (see `docs/architecture.md#rate-limiting` for the full design).
+
+Since the backend's Cloud Run instance only ever sees connections from either the frontend's server-side proxy or a direct caller, `main.ts` sets `trust proxy` to trust exactly one hop (Cloud Run's Google Front End) so `req.ip` reflects the real client rather than the connecting proxy's own address; the frontend's `/api/auth/login` route handler explicitly forwards the browser's `x-forwarded-for` header for the same reason.
 
 ---
 
@@ -250,7 +264,7 @@ Returns the full message thread for a ticket, ordered oldest-first (`createdAt` 
 | `PATCH /users/me/email` | Yes | Yes | Yes, except current session | Yes |
 | `DELETE /users/me` | Yes | Yes | Yes, all (cascade) | Yes |
 
-The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column.
+The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column, and [Login rate limiting](#login-rate-limiting) for `POST /auth/login`'s additional `429` case (not captured in this table, since it applies regardless of `Blocked on demo accounts` — demo accounts are rate-limited on failed attempts the same as any other account).
 
 ## Ticket endpoint access summary
 

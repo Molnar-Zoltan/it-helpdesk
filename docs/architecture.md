@@ -18,18 +18,20 @@ backend/src/
   auth/
   users/
   tickets/
+  redis/
 
 backend/prisma/
   prisma.module.ts
   prisma.service.ts
 ```
 
-- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `strategies/jwt.strategy.ts`, `token.util.ts`.
+- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `guards/login-rate-limit.guard.ts` (Step 6), `login-rate-limit.util.ts`, `exceptions/login-rate-limited.exception.ts`, `strategies/jwt.strategy.ts`, `token.util.ts`.
 - `backend/src/users/` — owns authenticated self-service account actions for the signed-in user; main files: `users.controller.ts`, `users.service.ts`, `users.module.ts`, `dto/change-email.dto.ts`, `dto/change-password.dto.ts`, `dto/delete-account.dto.ts`, `dto/update-name.dto.ts`, `types/authenticated-request.type.ts`.
 - `backend/src/tickets/` — manual ticket creation and self-service ticket management for customers; main files: `tickets.controller.ts`, `tickets.service.ts`, `tickets.module.ts`, `dto/create-ticket.dto.ts`, `dto/find-tickets-query.dto.ts`, `dto/close-ticket.dto.ts`, `dto/reopen-ticket.dto.ts`, `dto/create-message.dto.ts`. See [Manual ticket creation](#manual-ticket-creation) below for the design decisions behind it.
+- `backend/src/redis/` — global module wrapping a single `ioredis` client (`REDIS_URL`); main files: `redis.module.ts`, `redis.service.ts`. Consumed by `common/services/rate-limit.service.ts` (see [Rate limiting](#rate-limiting) below), not called directly by feature modules.
 - `backend/prisma/` — shared persistence wiring for Prisma access and database setup; main files: `prisma.service.ts`, `prisma.module.ts`, `schema.prisma`, `seed.ts`.
 
-No `ai/` or `rate-limit/` modules are implemented yet, so those responsibilities are still centralized rather than split into dedicated Nest modules.
+No `ai/` module is implemented yet, so AI-related responsibilities (Step 9) are still centralized rather than split into a dedicated Nest module.
 
 ## Manual ticket creation
 
@@ -56,17 +58,21 @@ See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-f
 
 ## Rate limiting
 
-One `RateLimitGuard`, backed by Redis (Upstash REST — no persistent connection needed, which matters since the backend on Google Cloud Run can scale to zero), is reused across three surfaces with different policies:
+`RateLimitService` (`backend/src/common/services/rate-limit.service.ts`), backed by Redis via `ioredis` over a plain TCP connection (not Upstash's REST client — see [Getting started](../README.md#getting-started); this is the same connection code unchanged against the local Docker Redis container and Upstash in production, just a different `REDIS_URL`), exposes generic primitives — `isLimited`, `recordFailure`, `reset` — rather than one monolithic guard class. Each rate-limited surface gets its own thin guard/service wiring on top of the same primitives, so the counting semantics (what counts as an "attempt," when to reset) can differ per surface without duplicating the Redis logic itself:
 
-| Surface | Policy | Key |
-|---|---|---|
-| AI chat | 10 requests / day / user | `ratelimit:ai:{userId}:{date}` |
-| Login | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` |
-| Registration | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter |
+| Surface | Policy | Key | Counts |
+|---|---|---|---|
+| Login (Step 6, done) | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` | Failed attempts only — `AuthService.login` resets the counter on success, so an early typo doesn't cost the rest of the window once the password's right |
+| AI chat (Step 9) | 10 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
+| Registration | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter | — |
 
-Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit.
+Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit. `LoginRateLimitGuard` only *checks* the limit (via `RateLimitService.isLimited`) before the request reaches `AuthService`; it's `AuthService.login` that calls `recordFailure`/`reset` once it actually knows whether the attempt succeeded, since a guard's `canActivate` runs before the route handler and has no visibility into that outcome.
 
-Registration uses Turnstile instead of a request counter because signup is a one-shot action — a counter can't distinguish a bot spinning up new accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can.
+Both the guard and `AuthService` need to land on the identical Redis key for the same email+IP pair, so the key format itself lives in one place (`backend/src/auth/login-rate-limit.util.ts`) rather than two independently maintained string templates.
+
+**Getting a real client IP required a prerequisite fix.** The frontend's BFF layer talks to the backend server-to-server (`backendFetch`), which never carries the browser's own connection — without intervention, every login through the actual website would be keyed on the frontend server's own IP, not the visitor's. `main.ts` sets `trust proxy` to `1` (Cloud Run's Google Front End is the one trusted hop, and it appends the real client IP after receipt, so it can't be spoofed by a direct caller), and the frontend's `/api/auth/login` route handler explicitly forwards the incoming request's `x-forwarded-for` header on the backend call.
+
+Registration uses Turnstile instead of a request counter because signup is a one-shot action — a counter can't distinguish a bot spinning up new accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can. (This is Step 7 — see [README.md](../README.md#roadmap).)
 
 ## Account self-service & deletion (GDPR)
 

@@ -2,6 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { TICKET_MESSAGE_CONTENT_MAX_LENGTH } from "@helpdesk/shared";
 import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
@@ -24,11 +25,14 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<CreateMessageFormValues>({
     resolver: zodResolver(createMessageSchema),
     defaultValues: DEFAULT_VALUES,
   });
+
+  const contentLength = watch("content")?.length ?? 0;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -49,7 +53,13 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
-      <FormField label="Add a message" error={errors.content?.message}>
+      <FormField
+        label="Add a message"
+        error={errors.content?.message}
+        hint={
+          errors.content ? undefined : `${contentLength}/${TICKET_MESSAGE_CONTENT_MAX_LENGTH} characters`
+        }
+      >
         {(field) => (
           <TextArea
             {...field}

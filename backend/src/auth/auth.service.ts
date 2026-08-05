@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashToken, requireEnv } from './token.util';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
+import { RateLimitService } from '../common/services/rate-limit.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 import { AUTH_ERRORS } from '../common/constants/error-messages.constants';
 import {
@@ -16,6 +17,8 @@ import {
   REFRESH_TOKEN_TTL_MS,
   BCRYPT_SALT_ROUNDS,
 } from '../common/constants/auth.constants';
+import { LOGIN_RATE_LIMIT_WINDOW_SECONDS } from '../common/constants/rate-limit.constants';
+import { buildLoginRateLimitKey } from './login-rate-limit.util';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +26,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private pwnedPasswords: PwnedPasswordService,
+    private rateLimit: RateLimitService,
   ) {}
 
   async register(
@@ -58,9 +62,24 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string) {
-    const user = await this.validateUser(email, password);
-    return this.issueTokens(user.id, user.role);
+  async login(email: string, password: string, ip: string) {
+    const rateLimitKey = buildLoginRateLimitKey(email, ip);
+    try {
+      const user = await this.validateUser(email, password);
+      // Successful login clears the slate — an early typo shouldn't count
+      // against a user for the rest of the 15-minute window once they get
+      // the password right (see RateLimitService's class comment).
+      await this.rateLimit.reset(rateLimitKey);
+      return this.issueTokens(user.id, user.role);
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        await this.rateLimit.recordFailure(
+          rateLimitKey,
+          LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        );
+      }
+      throw err;
+    }
   }
 
   async issueTokens(userId: string, role: string) {

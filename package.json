@@ -46,8 +46,5 @@
     "concurrently": "^10.0.4",
     "husky": "^9.1.7",
     "lint-staged": "^17.2.0"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^2.0.1"
   }
 }

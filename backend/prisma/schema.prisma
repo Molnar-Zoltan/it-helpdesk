@@ -103,16 +103,6 @@ model AiUsage {
   @@unique([userId, date])
 }
 
-model IpUsage {
-  id          String   @id @default(cuid())
-  ipAddress   String
-  action      String   // e.g. "LOGIN"
-  windowStart DateTime
-  count       Int      @default(0)
-
-  @@unique([ipAddress, action, windowStart])
-}
-
 model RefreshToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique

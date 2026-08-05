@@ -16,7 +16,7 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
-import { PaginatedResult } from '../common/types/paginated-result.type';
+import type { PaginatedResult } from '@helpdesk/shared';
 
 @Injectable()
 export class TicketsService {

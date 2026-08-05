@@ -1,4 +1,11 @@
-import type { Role, TicketPriority, TicketStatus } from "@helpdesk/shared";
+import type {
+  PaginatedResult,
+  Role,
+  SortOrder,
+  TicketPriority,
+  TicketSortableField,
+  TicketStatus,
+} from "@helpdesk/shared";
 
 /** GET /users/me response shape, per docs/api-endpoints.md. */
 export interface UserProfile {
@@ -99,3 +106,17 @@ export interface TicketResponse {
   customerId: string | null;
   agentId: string | null;
 }
+
+/** GET /tickets query params, per FindTicketsQueryDto. All optional —
+ * the backend fills in DEFAULT_PAGE/DEFAULT_LIMIT/etc. when omitted, but
+ * useTickets always sends explicit values so its query key stays a
+ * faithful cache key for whatever's actually showing on screen. */
+export interface TicketListQuery {
+  page: number;
+  limit: number;
+  sortBy: TicketSortableField;
+  sortOrder: SortOrder;
+}
+
+/** GET /tickets response. */
+export type TicketListResponse = PaginatedResult<TicketResponse>;

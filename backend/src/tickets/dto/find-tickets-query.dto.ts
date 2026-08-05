@@ -8,11 +8,8 @@ import {
   MAX_LIMIT,
   SORT_ORDERS,
   TICKET_SORTABLE_FIELDS,
-} from '../../common/constants/pagination.constants';
-import type {
-  SortOrder,
-  TicketSortableField,
-} from '../../common/constants/pagination.constants';
+} from '@helpdesk/shared';
+import type { SortOrder, TicketSortableField } from '@helpdesk/shared';
 
 export class FindTicketsQueryDto {
   @IsOptional()

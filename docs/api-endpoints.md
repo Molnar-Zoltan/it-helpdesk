@@ -226,7 +226,7 @@ Adds a message to a ticket's thread. `senderId` is always derived from the acces
   "senderId": "string"
 }
 ```
-**Errors**: `400` on validation failure (missing/oversized/emoji content); `404` if the ticket doesn't exist or the requester can't access it.
+**Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it.
 
 ### `GET /tickets/:id/messages`
 Returns the full message thread for a ticket, ordered oldest-first (`createdAt` ascending — the reverse of `GET /tickets`' newest-first default, since a conversation reads chronologically). Same visibility rule as `POST /tickets/:id/messages`.
@@ -265,6 +265,8 @@ The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` �
 | `GET /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
 
 Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.
+
+`POST /tickets/:id/messages` additionally 400s on a `CLOSED` ticket (`TICKET_CLOSED_CANNOT_MESSAGE`) — a closed ticket isn't being actively worked, so new messages are blocked until it's reopened. `GET /tickets/:id/messages` has no such restriction; the existing thread stays readable regardless of status.
 
 ---
 

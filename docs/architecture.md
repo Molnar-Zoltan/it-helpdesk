@@ -165,6 +165,59 @@ frontend/proxy.ts
 - **Toast notifications use `sonner`**, mounted in `Providers` and styled via its CSS-variable API (`--normal-*`/`--success-*`) mapped onto this app's own `@theme` tokens rather than sonner's built-in `richColors` palette — toasts read as part of this app, not a generic library default. Register fires a green/`accent-done`-bordered `toast.success()` right before its redirect (survives the navigation since `Toaster` lives at the layout level); login fires a neutral `toast()` ("Welcome back!") using the same dark styling as everything else, not the success color, since it's a greeting rather than a confirmation.
 - **Post-login/register redirect target is `/`,** not a dedicated dashboard — there's no ticket list or account page yet (Steps 5.4/5.6). The home page's `AuthStatusBanner` (a small client component, kept separate so `app/page.tsx` itself stays a server component) shows a login/register prompt when logged out or a "Welcome back" note when logged in, so landing on `/` after auth isn't a dead end. `proxy.ts` also supports a `?redirectTo=` query param for when a protected route eventually bounces someone to `/login` first.
 
+## Ticket frontend (Steps 5.5–5.7)
+
+```
+frontend/app/tickets/
+  page.tsx
+  _components/
+    ticket-list-view/       # reads/writes ?page=&sortBy=&sortOrder=
+    ticket-row/              # NOT linked until 5.7 lands a detail page
+    ticket-pagination/       # plain Prev/Next, no page-number strip
+    ticket-sort-controls/
+    status-badge/             # wraps the Badge primitive
+    priority-badge/
+  new/
+    page.tsx
+    _components/new-ticket-form/
+  [id]/
+    page.tsx                    # awaits Next 16's async params
+    _components/
+      ticket-detail-view/
+      ticket-status-modal/      # shared by close AND reopen
+      message-thread/
+      message-item/
+      message-composer/
+
+frontend/lib/validation/
+  ticket-schemas.ts   # zod, wraps @helpdesk/shared's TICKET_* constants
+
+frontend/lib/queries/
+  use-tickets.ts        # list, key: ["tickets", { page, limit, sortBy, sortOrder }]
+  use-ticket.ts           # detail, key: ["tickets", "detail", id] — nested under
+                           # the list's key so invalidating ["tickets"] catches both
+  use-ticket-messages.ts
+
+frontend/lib/mutations/
+  use-create-ticket.ts
+  use-close-ticket.ts
+  use-reopen-ticket.ts
+  use-create-message.ts
+
+frontend/components/ui/select/   # native <select>, styled to match Input/TextArea
+```
+
+- **Manual ticket creation is intentionally *not* gated by `isDemoUserId`.** The four self-service mutations under `/users/me` are demo-protected because they'd break a shared account every visitor relies on; filing a ticket does neither, so all three demo accounts can create tickets like any other user. Only the account tabs check `isDemoUserId`.
+- **`useTickets`/`useTicket` share one query-key prefix (`["tickets"]`) on purpose.** `useCreateTicket`'s `invalidateQueries({ queryKey: ["tickets"] })` matches by prefix, so a new ticket refreshes the list *and* any mounted detail view without either hook needing to know the other exists. `useCreateMessage` invalidates narrower — only that one ticket's messages key — since posting a message doesn't change the ticket list.
+- **Pagination/sort state lives in the URL (`?page=&sortBy=&sortOrder=`), same pattern as the account page's `?tab=`.** A specific page or sort order is linkable and survives a refresh, and the query key `useTickets` builds from these params is what actually drives TanStack Query's caching — not local component state. `placeholderData: keepPreviousData` keeps the previous page on screen while the next one loads, so paging feels like flipping a page rather than a fresh loading spinner each time.
+- **`PaginatedResult<T>` and the sort/pagination constants (`DEFAULT_PAGE`/`DEFAULT_LIMIT`, `TICKET_SORTABLE_FIELDS`, sort-order values) were promoted from backend-only into `@helpdesk/shared`**, mirroring the earlier `ACCESS_TOKEN_TTL_MS` precedent — the backend's `FindTicketsQueryDto`/`TicketsService` and the frontend's `useTickets` both import the same source instead of the frontend guessing at the shape of a page.
+- **Close and reopen share one `TicketStatusModal` component**, parameterized by direction, rather than two near-identical modals — it mirrors the `Modal` primitive built for the account page's delete-account confirmation (focus trap, Escape/backdrop close) and shows the close/reopen reason history inline once a ticket has been through the cycle.
+- **`POST /tickets/:id/messages` 400s on a `CLOSED` ticket (`TICKET_CLOSED_CANNOT_MESSAGE`)** — added alongside the detail page, since a compose box on a closed ticket needs somewhere to send that error. `MessageComposer` disables itself with an explanatory note when the ticket is closed, matching the backend guard rather than only discovering it on submit; reading the existing thread is unaffected by ticket status.
+- **A ticket detail fetch distinguishes a genuine `404` from other errors** (`error instanceof ApiError && error.status === 404`) to show "ticket not found" copy instead of a generic error state — the backend intentionally returns `404`, not `403`, for a ticket that exists but isn't the caller's (see [api-endpoints.md](api-endpoints.md#tickets-tickets)), so the frontend can't and doesn't try to tell those two cases apart either.
+- **`Button` (`components/ui/`) always renders a native `<button>` with no slot/`asChild` support for wrapping a `Link`.** Anywhere a link needs to look like a button — "New ticket" on the list page, "Cancel" on the creation form — the relevant variant's Tailwind classes are hand-rolled directly onto a real `<a>`/`next/link` instead of nesting elements, so ⌘-click/middle-click/"open in new tab" keep working.
+- **`Message` only carries a `senderId`, not a name or role**, so `MessageThread` labels each entry "You" / "Support" / "AI Assistant" by comparing `senderId` against the viewer's own id (AI-generated messages are identified by `isAiGenerated`, not by sender) rather than resolving and displaying a real name.
+- **The creation form redirects straight to `/tickets/:id` on success**, once the detail page existed to redirect to (Step 5.7) — the interim `TicketCreatedNotice` shown inline from Step 5.5, back when there was nowhere to send someone, was removed at that point.
+
 ## Deployment
 
 ```

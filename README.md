@@ -26,6 +26,7 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 - Session-aware token revocation: password and email changes revoke every other active session while preserving the one that made the change, via a `refreshTokenId` claim embedded in the access token
 - GDPR-compliant account deletion: user data is hard-deleted, but their tickets/messages are anonymized rather than destroyed, preserving operational history for the other party (see [docs/schema.md](docs/schema.md#gdpr--account-deletion-behavior))
 - Manual ticket creation, end to end: customers can create, list (paginated & sortable), view, close, and reopen their own tickets, and post/read messages on a ticket's thread — full UI at `/tickets`, `/tickets/new`, and `/tickets/:id`, backed by the API documented in [docs/api-endpoints.md](docs/api-endpoints.md#tickets-tickets)
+- Redis-backed login rate limiting: 5 failed attempts per email+IP pair within 15 minutes returns a `429` with a real retry countdown, surfaced live in the login form — documented in [docs/api-endpoints.md](docs/api-endpoints.md#login-rate-limiting)
 
 Not yet built — see [Roadmap](#roadmap).
 
@@ -47,10 +48,11 @@ Next.js (Vercel)
      │
      ▼
 NestJS API (Google Cloud Run)
-     ├── auth/         JWT issuance, refresh, guards
+     ├── auth/         JWT issuance, refresh, guards, login rate limiting
      ├── tickets/       manual + AI-created tickets, shared validation
      ├── ai/             Gemini tool-calling, extracts structured tickets
-     ├── rate-limit/    Redis-backed guard, reused by ai/ and auth/
+     ├── common/        RateLimitService (Redis-backed primitives, reused by ai/ and auth/), shared validators
+     ├── redis/         ioredis connection, consumed by common/
      └── users/
      │
      ├──► PostgreSQL (Neon)
@@ -59,9 +61,9 @@ NestJS API (Google Cloud Run)
 
 Manual ticket submissions and AI-chat ticket submissions are two separate entry points that both call the same `TicketsService.create()` — see [docs/architecture.md](docs/architecture.md) for the full flow diagram.
 
-One `RateLimitGuard` (Redis-backed) will be reused across three surfaces with different policies: AI chat (10 req/day/user), login (5 attempts/15 min, email+IP), and registration (Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter). See [Roadmap](#roadmap) — this guard isn't wired in yet.
+`RateLimitService` (Redis-backed, `ioredis` over TCP) is shared across rate-limited surfaces with different policies: login (5 attempts/15 min, email+IP — done, Step 6) and AI chat (10 req/day/user — Step 9). Registration uses Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better (Step 7). See [Roadmap](#roadmap).
 
-Redis will be accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
+Redis is accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
 
 ## Getting started
 
@@ -182,12 +184,12 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
    - 5.6 ✅ Ticket list — `/tickets`, `useTickets` (paginated & sortable, `page`/`sortBy`/`sortOrder` synced to the URL, `keepPreviousData` for flicker-free paging), `StatusBadge`/`PriorityBadge`, `TicketRow`/`TicketPagination`/`TicketSortControls`. `PaginatedResult<T>` and the pagination/sort constants promoted from backend-only into `@helpdesk/shared`, mirroring the earlier `ACCESS_TOKEN_TTL_MS` precedent. `useCreateTicket` now invalidates the list on success.
    - 5.7 ✅ Ticket detail — `/tickets/:id`, `TicketDetailView` (header, description, close/reopen via a shared `TicketStatusModal`, `MessageThread` + `MessageComposer`). Backend gained a `400 TICKET_CLOSED_CANNOT_MESSAGE` guard blocking new messages on a `CLOSED` ticket (reading the thread is unaffected); the composer disables itself with an explanatory note to match. `TicketRow` now links here and the creation form redirects straight to the new ticket instead of the interim inline notice.
    - 5.8 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md` updated for Steps 5.5–5.7 (ticket-frontend architecture section, `TICKET_CLOSED_CANNOT_MESSAGE` error documented on `POST /tickets/:id/messages`).
+6. ✅ Redis login rate limiting (5 attempts / 15 min)
+   - 6.1 ✅ Backend — `RateLimitService` (`common/services/`) exposes generic Redis primitives (`isLimited`/`recordFailure`/`reset`) over an `ioredis` TCP connection (new `redis/` module), rather than one monolithic guard — `LoginRateLimitGuard` pre-checks the limit before the request reaches `AuthController`, and `AuthService.login` records a failure only on bad credentials and resets the counter on success, so an early typo doesn't cost the rest of the 15-minute window once the password's right. Keyed on email+IP together (`ratelimit:login:{emailHash}:{ipHash}`, both hashed so raw values never sit in Redis) via a shared key-builder util so the guard and service can't drift onto different keys. A `429 LOGIN_RATE_LIMITED` response includes `retryAfterSeconds` read straight off the Redis key's TTL. Required a prerequisite fix: the frontend's BFF talks to the backend server-to-server, so without forwarding the browser's real IP every login would key on the frontend server's own address — `main.ts` now sets `trust proxy` (Cloud Run's Google Front End is the one trusted hop) and `/api/auth/login`'s route handler forwards `x-forwarded-for` explicitly. Also removed the never-used `IpUsage` Postgres model, scaffolded early for a Postgres-backed version of this that Redis superseded.
+   - 6.2 ✅ Frontend — `LoginForm` reads `retryAfterSeconds` off `ApiError` (now carries it through both `apiClient`'s and `authClient`'s error paths) and ticks down a live countdown (`"Too many login attempts. Try again in 2:05."`), disabling submission until it clears — a static "try again later" would've left the user guessing.
 
 **Left**
 
-6. ⬜ Redis login rate limiting (5 attempts / 15 min)
-   - 6.1 Backend — `RateLimitGuard` on `/auth/login`
-   - 6.2 Frontend — surface lockout state/messaging to the user
 7. ⬜ Cloudflare Turnstile on registration
 8. ⬜ Agent dashboard
    - 8.1 Backend — queue/filtering/assignment endpoints, agent-driven status transitions beyond the current customer-only close/reopen

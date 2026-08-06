@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { ApiError } from "@/lib/api/client";
 import { useCreateMessage } from "@/lib/mutations/use-create-message";
 import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { createMessageSchema, type CreateMessageFormValues } from "@/lib/validation/ticket-schemas";
@@ -44,6 +45,14 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
     "TICKET_MESSAGE_RATE_LIMITED",
   );
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
+
+  // Same fix as NewTicketForm: the mutation's error persists past the
+  // cooldown expiring, so without this the stale 429 message renders as a
+  // generic error forever once isOnCooldown flips back to false.
+  const isRateLimitError =
+    createMessageMutation.isError &&
+    createMessageMutation.error instanceof ApiError &&
+    createMessageMutation.error.code === "TICKET_MESSAGE_RATE_LIMITED";
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -88,7 +97,8 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
           {formatCountdown(cooldownRemaining)}.
         </Alert>
       ) : (
-        createMessageMutation.isError && (
+        createMessageMutation.isError &&
+        !isRateLimitError && (
           <Alert tone="danger">{createMessageMutation.error.message}</Alert>
         )
       )}

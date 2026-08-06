@@ -36,7 +36,17 @@ export function LoginForm() {
   // Ticks down locally via setTimeout so the alert/button reflect a live
   // countdown rather than a static "try again later" — the backend is
   // still the real enforcement point regardless of what this shows.
-  const [lockoutRemaining, setLockoutRemaining] = useState<number | null>(null);
+  //
+  // The lockout is keyed by email+IP on the backend, so it's scoped to a
+  // single email here too — captured from the actual attempted payload
+  // (loginMutation.variables), not the live form value, since by the time
+  // this effect runs the person may already be editing the field. Without
+  // this, trying a different account after a lockout would require a page
+  // refresh instead of just... typing a different email.
+  const [lockout, setLockout] = useState<{
+    email: string;
+    remaining: number;
+  } | null>(null);
 
   useEffect(() => {
     const error = loginMutation.error;
@@ -46,19 +56,23 @@ export function LoginForm() {
       error.code === "LOGIN_RATE_LIMITED" &&
       typeof error.retryAfterSeconds === "number"
     ) {
-      setLockoutRemaining(error.retryAfterSeconds);
+      const attemptedEmail = loginMutation.variables?.email ?? "";
+      setLockout({
+        email: attemptedEmail.trim().toLowerCase(),
+        remaining: error.retryAfterSeconds,
+      });
     }
-  }, [loginMutation.isError, loginMutation.error]);
+  }, [loginMutation.isError, loginMutation.error, loginMutation.variables]);
 
   useEffect(() => {
-    if (lockoutRemaining === null || lockoutRemaining <= 0) return;
+    if (!lockout || lockout.remaining <= 0) return;
     const timer = setTimeout(() => {
-      setLockoutRemaining((prev) => (prev !== null ? prev - 1 : null));
+      setLockout((prev) =>
+        prev ? { ...prev, remaining: prev.remaining - 1 } : null,
+      );
     }, 1000);
     return () => clearTimeout(timer);
-  }, [lockoutRemaining]);
-
-  const isLockedOut = lockoutRemaining !== null && lockoutRemaining > 0;
+  }, [lockout]);
 
   const {
     register,
@@ -74,7 +88,22 @@ export function LoginForm() {
   // nuanced feedback being hidden here, so a disabled button doesn't cost
   // anything in discoverability.
   const [email, password] = watch(["email", "password"]);
-  const canSubmit = Boolean(email) && Boolean(password) && !isLockedOut;
+
+  const isLockedOutForCurrentEmail =
+    lockout !== null &&
+    lockout.remaining > 0 &&
+    email?.trim().toLowerCase() === lockout.email;
+
+  // The rate-limit error is only meaningful for the email it applied to —
+  // once the person's typed a different one, the mutation's last error is
+  // stale and shouldn't block the button or show a confusing message.
+  const isRateLimitError =
+    loginMutation.isError &&
+    loginMutation.error instanceof ApiError &&
+    loginMutation.error.code === "LOGIN_RATE_LIMITED";
+
+  const canSubmit =
+    Boolean(email) && Boolean(password) && !isLockedOutForCurrentEmail;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -111,12 +140,14 @@ export function LoginForm() {
         )}
       </FormField>
 
-      {isLockedOut ? (
+      {isLockedOutForCurrentEmail ? (
         <Alert tone="danger">
-          Too many login attempts. Try again in {formatCountdown(lockoutRemaining)}.
+          Too many login attempts for this email. Try again in{" "}
+          {formatCountdown(lockout.remaining)}.
         </Alert>
       ) : (
-        loginMutation.isError && (
+        loginMutation.isError &&
+        !isRateLimitError && (
           <Alert tone="danger">{loginMutation.error.message}</Alert>
         )
       )}

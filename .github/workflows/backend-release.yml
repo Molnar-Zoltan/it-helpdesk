@@ -1,0 +1,149 @@
+name: Release
+
+# Versioning + changelog for the whole monorepo (one version, not per-workspace).
+# The "release" job below always runs on push to main but only actually cuts a
+# release when there's a feat/fix/breaking commit since the last tag — a
+# docs-only or frontend-only push computes the same version as before and
+# exits early, so this never fires a pointless release.
+#
+# A future "deploy-backend" job (Phase 3) will run `needs: release`, gated on
+# both `needs.release.outputs.released == 'true'` AND a path filter on
+# backend/**  + packages/shared/**, so a release triggered by frontend-only
+# work never rebuilds/redeploys an unchanged backend.
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Defense in depth: pushes made with the default GITHUB_TOKEN don't
+    # retrigger workflows, so this job's own release commit can't normally
+    # cause a recursive run — but skip explicitly anyway in case that ever
+    # changes or a PAT gets swapped in later.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.version.outputs.released }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@git-cliff
+
+      - name: Compute next version
+        id: version
+        run: |
+          # NOTE: this does NOT use git-cliff's own `--bumped-version` / [bump]
+          # engine. As of git-cliff 2.13.0, the documented `no_increment_regex`
+          # option (meant to stop chore/ci/docs-only commits from triggering a
+          # bump) is accepted in cliff.toml but verified to have no actual
+          # effect - a chore-only commit still bumps a patch version with it
+          # set. Rather than ship a release gate that silently doesn't gate,
+          # the bump decision is computed here from plain conventional-commit
+          # grep, tested against real feat/fix/breaking/chore-only scenarios
+          # before this workflow was written. git-cliff is used below only to
+          # render the changelog body, which does work correctly.
+          set -euo pipefail
+
+          CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$CURRENT_TAG" ]; then
+            echo "No tags found — this repo needs a seed tag (e.g. v0.7.0) before this workflow can compute a next version."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SUBJECTS=$(git log "${CURRENT_TAG}..HEAD" --pretty=%s || true)
+          BODIES=$(git log "${CURRENT_TAG}..HEAD" --pretty=%B || true)
+
+          BUMP="none"
+          if echo "$SUBJECTS" | grep -qE '^[a-zA-Z]+(\([a-zA-Z0-9_.-]+\))?!:'; then
+            BUMP="major"
+          elif echo "$BODIES" | grep -q "^BREAKING CHANGE:"; then
+            BUMP="major"
+          elif echo "$SUBJECTS" | grep -qE '^feat(\([a-zA-Z0-9_.-]+\))?:'; then
+            BUMP="minor"
+          elif echo "$SUBJECTS" | grep -qE '^fix(\([a-zA-Z0-9_.-]+\))?:'; then
+            BUMP="patch"
+          fi
+
+          echo "Current tag: $CURRENT_TAG"
+          echo "Bump type: $BUMP"
+
+          if [ "$BUMP" = "none" ]; then
+            echo "No feat/fix/breaking commits since $CURRENT_TAG — skipping release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_VERSION="${CURRENT_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          case "$BUMP" in
+            major)
+              # While the major version is 0, a breaking change bumps minor
+              # rather than jumping straight to 1.0.0 — 1.0.0 is reserved for
+              # deliberately marking the full roadmap (Steps 1-9) complete,
+              # not triggered incidentally by a breaking-change commit.
+              if [ "$MAJOR" = "0" ]; then
+                MINOR=$((MINOR + 1)); PATCH=0
+              else
+                MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+              fi
+              ;;
+            minor)
+              MINOR=$((MINOR + 1)); PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog, bump package.json, tag, and push
+        if: steps.version.outputs.released == 'true'
+        id: release
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ -f CHANGELOG.md ]; then
+            git-cliff --tag "$NEXT_VERSION" --unreleased --prepend CHANGELOG.md
+          else
+            git-cliff --tag "$NEXT_VERSION" --unreleased -o CHANGELOG.md
+          fi
+
+          VERSION_NO_V="${NEXT_VERSION#v}"
+          npm version "$VERSION_NO_V" --no-git-tag-version --allow-same-version
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json
+          git commit -m "chore(release): ${NEXT_VERSION} [skip ci]"
+          git tag "$NEXT_VERSION"
+          git push origin HEAD:main
+          git push origin "$NEXT_VERSION"

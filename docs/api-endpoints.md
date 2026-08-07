@@ -13,13 +13,13 @@ Creates a new account and returns an initial token pair.
 
 **Body**
 ```json
-{ "email": "user@example.com", "password": "string", "firstName": "string", "lastName": "string" }
+{ "email": "user@example.com", "password": "string", "firstName": "string", "lastName": "string", "turnstileToken": "string" }
 ```
 **Response** `200`
 ```json
 { "accessToken": "string", "refreshToken": "string" }
 ```
-**Errors**: `409` if the email is already registered.
+**Errors**: `409` if the email is already registered; `400` `TURNSTILE_VERIFICATION_FAILED` if `turnstileToken` is missing, invalid, expired, already used, or Cloudflare's siteverify API couldn't be reached — see [Registration CAPTCHA](#registration-captcha) below.
 
 ### `POST /auth/login`
 Authenticates with email/password and returns a fresh token pair.
@@ -63,6 +63,20 @@ Revokes a refresh token, ending that session.
 Keyed on email+IP together (`ratelimit:login:{emailHash}:{ipHash}`, both SHA-256-truncated so raw emails/IPs never sit in Redis), not either alone — IP-only would let one bad actor lock out everyone behind the same NAT, email-only would let someone hammer a single account from many IPs. Only *failed* attempts increment the counter, and a successful login resets it — a mistyped password early on doesn't count against the rest of the window once the user gets it right (see `docs/architecture.md#rate-limiting` for the full design).
 
 Since the backend's Cloud Run instance only ever sees connections from either the frontend's server-side proxy or a direct caller, `main.ts` sets `trust proxy` to trust exactly one hop (Cloud Run's Google Front End) so `req.ip` reflects the real client rather than the connecting proxy's own address; the frontend's `/api/auth/login` route handler explicitly forwards the browser's `x-forwarded-for` header for the same reason.
+
+### Registration CAPTCHA
+
+`POST /auth/register` is guarded by `TurnstileGuard`, which verifies the request's `turnstileToken` against Cloudflare's Turnstile siteverify API before the request reaches `RegisterDto` validation. A missing, invalid, expired, or already-spent token returns `400`:
+
+```json
+{ "statusCode": 400, "error": "TURNSTILE_VERIFICATION_FAILED", "message": "Captcha verification failed. Please try again." }
+```
+
+Unlike the HIBP breach check on password strength (an advisory soft-warning that fails open if the check's own API is unreachable), Turnstile is a hard anti-bot gate and fails **closed**: if Cloudflare's siteverify API is unreachable, slow, or errors, the token is treated as failed verification rather than let through. A brief Cloudflare outage blocking new registrations is judged a smaller cost than silently having no bot protection during that window.
+
+Turnstile tokens are single-use — a token consumed by one `POST /auth/register` call (successful or not) can't be reused on a second call, including a resubmit after a `422 WEAK_PASSWORD_WARNING` on the same request. The frontend's register form resets its Turnstile widget and requires a fresh token before any resubmit for this reason.
+
+Registration uses a CAPTCHA challenge rather than a Redis-backed request counter (unlike login/ticket-creation/messages) because signup is a one-shot action — a counter can't distinguish a bot spinning up accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can (see `docs/architecture.md#rate-limiting`).
 
 ---
 
@@ -279,7 +293,7 @@ Messages are scoped per-ticket (not just per-user) so a cooldown on one thread d
 | `PATCH /users/me/email` | Yes | Yes | Yes, except current session | Yes |
 | `DELETE /users/me` | Yes | Yes | Yes, all (cascade) | Yes |
 
-The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column, and [Login rate limiting](#login-rate-limiting) for `POST /auth/login`'s additional `429` case (not captured in this table, since it applies regardless of `Blocked on demo accounts` — demo accounts are rate-limited on failed attempts the same as any other account).
+The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column, [Login rate limiting](#login-rate-limiting) for `POST /auth/login`'s additional `429` case, and [Registration CAPTCHA](#registration-captcha) for `POST /auth/register`'s additional `400 TURNSTILE_VERIFICATION_FAILED` case (neither captured in this table, since both apply regardless of `Blocked on demo accounts` — demo accounts still need a valid Turnstile token to register, though in practice they're only ever seeded, not registered through this endpoint).
 
 ## Ticket endpoint access summary
 

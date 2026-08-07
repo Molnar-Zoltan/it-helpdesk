@@ -1,21 +1,16 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { RateLimitedException } from '../../common/exceptions/rate-limited.exception';
 
 /**
  * Thrown when a login attempt is blocked by Step 6's Redis-backed rate
  * limit (5 attempts / 15 min, keyed on email+IP together — see
- * architecture.md#rate-limiting). `retryAfterSeconds` lets the frontend
- * show a real countdown instead of a generic "try again later."
+ * architecture.md#rate-limiting).
  */
-export class LoginRateLimitedException extends HttpException {
+export class LoginRateLimitedException extends RateLimitedException {
   constructor(retryAfterSeconds: number) {
     super(
-      {
-        statusCode: HttpStatus.TOO_MANY_REQUESTS,
-        error: 'LOGIN_RATE_LIMITED',
-        message: 'Too many login attempts. Please try again later.',
-        retryAfterSeconds,
-      },
-      HttpStatus.TOO_MANY_REQUESTS,
+      'LOGIN_RATE_LIMITED',
+      'Too many login attempts. Please try again later.',
+      retryAfterSeconds,
     );
   }
 }

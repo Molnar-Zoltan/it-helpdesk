@@ -11,7 +11,9 @@ import { TextArea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { ApiError } from "@/lib/api/client";
 import { useCreateTicket } from "@/lib/mutations/use-create-ticket";
+import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { cn } from "@/lib/utils";
 import {
   createTicketSchema,
@@ -47,6 +49,29 @@ export function NewTicketForm() {
   });
 
   const descriptionLength = watch("description")?.length ?? 0;
+
+  // Step 6b: a 60s anti-spam cooldown on ticket creation (see
+  // rate-limit.constants.ts) — every attempt costs it, not just failures,
+  // so once this fires it applies regardless of what the user does next
+  // (unlike login's lockout, there's no "different email" escape hatch
+  // that makes sense here).
+  const cooldownRemaining = useRateLimitCountdown(
+    createTicketMutation.isError,
+    createTicketMutation.error,
+    "TICKET_CREATE_RATE_LIMITED",
+  );
+  const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
+
+  // The mutation's error state persists until the next attempt -- once the
+  // cooldown above expires, isOnCooldown flips to false but
+  // createTicketMutation.error is still the stale 429, so without this it
+  // falls through and renders "You're creating tickets too quickly" as a
+  // generic error forever. Suppress it specifically once it's no longer
+  // live.
+  const isRateLimitError =
+    createTicketMutation.isError &&
+    createTicketMutation.error instanceof ApiError &&
+    createTicketMutation.error.code === "TICKET_CREATE_RATE_LIMITED";
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -109,12 +134,24 @@ export function NewTicketForm() {
         )}
       </FormField>
 
-      {createTicketMutation.isError && (
-        <Alert tone="danger">{createTicketMutation.error.message}</Alert>
+      {isOnCooldown ? (
+        <Alert tone="danger">
+          You&apos;re creating tickets too quickly. Try again in{" "}
+          {formatCountdown(cooldownRemaining)}.
+        </Alert>
+      ) : (
+        createTicketMutation.isError &&
+        !isRateLimitError && (
+          <Alert tone="danger">{createTicketMutation.error.message}</Alert>
+        )
       )}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" isLoading={createTicketMutation.isPending}>
+        <Button
+          type="submit"
+          disabled={isOnCooldown}
+          isLoading={createTicketMutation.isPending}
+        >
           Submit ticket
         </Button>
 

@@ -19,7 +19,11 @@ export interface RateLimitStatus {
  * AuthService knows whether the attempt actually failed (see
  * architecture.md's rate-limiting table — this is what lets a correct
  * password on an early attempt clear the slate instead of counting against
- * the user forever within the window).
+ * the user forever within the window). Other consumers (ticket-creation
+ * and ticket-message cooldowns, Step 9's AI daily limit) instead increment
+ * unconditionally from within the guard itself, since every attempt there
+ * costs the same regardless of outcome — increment()'s naming is
+ * deliberately neutral to fit both.
  */
 @Injectable()
 export class RateLimitService {
@@ -46,9 +50,9 @@ export class RateLimitService {
   /**
    * Increments the counter, starting a fresh windowSeconds TTL only on the
    * first increment (so a key that's mid-window doesn't have its expiry
-   * pushed back out by every subsequent failure).
+   * pushed back out by every subsequent call).
    */
-  async recordFailure(key: string, windowSeconds: number): Promise<void> {
+  async increment(key: string, windowSeconds: number): Promise<void> {
     const client = this.redis.getClient();
     const count = await client.incr(key);
     if (count === 1) {

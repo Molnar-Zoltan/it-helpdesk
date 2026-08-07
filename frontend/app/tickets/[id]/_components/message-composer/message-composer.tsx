@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { ApiError } from "@/lib/api/client";
 import { useCreateMessage } from "@/lib/mutations/use-create-message";
+import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { createMessageSchema, type CreateMessageFormValues } from "@/lib/validation/ticket-schemas";
 import type { MessageComposerProps } from "./message-composer.types";
 
@@ -33,6 +35,24 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
   });
 
   const contentLength = watch("content")?.length ?? 0;
+
+  // Step 6b: a 10s anti-spam cooldown per user+ticket (see
+  // rate-limit.constants.ts) -- short enough that a real conversation
+  // never notices it, long enough to stop a script firing back-to-back.
+  const cooldownRemaining = useRateLimitCountdown(
+    createMessageMutation.isError,
+    createMessageMutation.error,
+    "TICKET_MESSAGE_RATE_LIMITED",
+  );
+  const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
+
+  // Same fix as NewTicketForm: the mutation's error persists past the
+  // cooldown expiring, so without this the stale 429 message renders as a
+  // generic error forever once isOnCooldown flips back to false.
+  const isRateLimitError =
+    createMessageMutation.isError &&
+    createMessageMutation.error instanceof ApiError &&
+    createMessageMutation.error.code === "TICKET_MESSAGE_RATE_LIMITED";
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -71,11 +91,24 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
         )}
       </FormField>
 
-      {createMessageMutation.isError && (
-        <Alert tone="danger">{createMessageMutation.error.message}</Alert>
+      {isOnCooldown ? (
+        <Alert tone="danger">
+          You&apos;re sending messages too quickly. Try again in{" "}
+          {formatCountdown(cooldownRemaining)}.
+        </Alert>
+      ) : (
+        createMessageMutation.isError &&
+        !isRateLimitError && (
+          <Alert tone="danger">{createMessageMutation.error.message}</Alert>
+        )
       )}
 
-      <Button type="submit" className="self-start" isLoading={createMessageMutation.isPending}>
+      <Button
+        type="submit"
+        className="self-start"
+        disabled={isOnCooldown}
+        isLoading={createMessageMutation.isPending}
+      >
         Send message
       </Button>
     </form>

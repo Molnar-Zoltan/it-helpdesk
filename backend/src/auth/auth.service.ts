@@ -73,7 +73,7 @@ export class AuthService {
       return this.issueTokens(user.id, user.role);
     } catch (err) {
       if (err instanceof UnauthorizedException) {
-        await this.rateLimit.recordFailure(
+        await this.rateLimit.increment(
           rateLimitKey,
           LOGIN_RATE_LIMIT_WINDOW_SECONDS,
         );

@@ -171,7 +171,7 @@ Creates a new ticket. `customerId` is always derived from the access token — i
   "agentId": null
 }
 ```
-**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content).
+**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content); `429` `TICKET_CREATE_RATE_LIMITED` if called again within 60 seconds of the last attempt — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets`
 Lists the authenticated user's own tickets, paginated and sortable.
@@ -240,13 +240,28 @@ Adds a message to a ticket's thread. `senderId` is always derived from the acces
   "senderId": "string"
 }
 ```
-**Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it.
+**Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it; `429` `TICKET_MESSAGE_RATE_LIMITED` if called again on the same ticket within 10 seconds of the last message — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets/:id/messages`
 Returns the full message thread for a ticket, ordered oldest-first (`createdAt` ascending — the reverse of `GET /tickets`' newest-first default, since a conversation reads chronologically). Same visibility rule as `POST /tickets/:id/messages`.
 
 **Response** `200`: array of Message objects, same shape as the `POST /tickets/:id/messages` response.
 **Errors**: `404` if the ticket doesn't exist or the requester can't access it.
+
+### Ticket rate limiting
+
+`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The three seeded demo accounts' credentials are published in this README for the live demo, and registration is open with no CAPTCHA until Step 7 lands, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
+
+| Endpoint | Cooldown | Key | Error |
+|---|---|---|---|
+| `POST /tickets` | 60 seconds | `ratelimit:ticket-create:{userId}` | `429 TICKET_CREATE_RATE_LIMITED` |
+| `POST /tickets/:id/messages` | 10 seconds | `ratelimit:ticket-message:{userId}:{ticketId}` | `429 TICKET_MESSAGE_RATE_LIMITED` |
+
+Both return the same shape as login's `429` (`retryAfterSeconds` read off the Redis key's TTL), and the frontend shows the same live countdown pattern on `/tickets/new` and a ticket's message composer.
+
+Every attempt counts against the cooldown, success or not — unlike login (which only counts *failed* attempts, so a mistyped password doesn't cost the window), the cost being defended against here is incurred by the attempt itself, not by whether it succeeds. Ticket creation gets a full minute since filing more than one new ticket within 60s isn't something a real user does; messages get a much shorter 10 seconds since a support thread is genuinely conversational and a longer cooldown would get in the way of a real back-and-forth — 10s is enough to stop a spam script firing requests back-to-back without a human ever noticing it's there.
+
+Messages are scoped per-ticket (not just per-user) so a cooldown on one thread doesn't block replying on another.
 
 ---
 
@@ -281,6 +296,8 @@ The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` �
 Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.
 
 `POST /tickets/:id/messages` additionally 400s on a `CLOSED` ticket (`TICKET_CLOSED_CANNOT_MESSAGE`) — a closed ticket isn't being actively worked, so new messages are blocked until it's reopened. `GET /tickets/:id/messages` has no such restriction; the existing thread stays readable regardless of status.
+
+See [Ticket rate limiting](#ticket-rate-limiting) for `POST /tickets`' and `POST /tickets/:id/messages`' additional `429` case (not captured in this table, since it applies the same way regardless of `Visible to`).
 
 ---
 

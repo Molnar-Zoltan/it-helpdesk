@@ -13,7 +13,7 @@ import { buildLoginRateLimitKey } from '../login-rate-limit.util';
  * without ever tripping a per-IP limit (see architecture.md#rate-limiting).
  *
  * Only checks here; AuthService.login is what actually calls
- * recordFailure()/reset() once it knows whether the attempt succeeded —
+ * increment()/reset() once it knows whether the attempt succeeded —
  * see the class comment on RateLimitService for why that split exists.
  */
 @Injectable()

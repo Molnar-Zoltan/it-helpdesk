@@ -11,14 +11,15 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
+import { TurnstileGuard } from './guards/turnstile.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(TurnstileGuard)
   register(@Body() dto: RegisterDto) {
-    // TODO Step 7: Turnstile guard here
     return this.authService.register(
       dto.email,
       dto.password,

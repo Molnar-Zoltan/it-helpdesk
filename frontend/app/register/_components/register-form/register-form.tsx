@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,6 +17,8 @@ import {
   type RegisterFormValues,
 } from "@/lib/validation/auth-schemas";
 import { PasswordRequirements } from "@/components/ui/password-requirements";
+import { TurnstileWidget } from "../turnstile-widget";
+import type { TurnstileWidgetHandle } from "../turnstile-widget";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -29,6 +31,13 @@ export function RegisterForm() {
   // in a known breach (422 WEAK_PASSWORD_WARNING). Not a hard error — the
   // user can resubmit the same form with acknowledgeWeakPassword: true.
   const [weakPasswordWarning, setWeakPasswordWarning] = useState(false);
+
+  // Turnstile tokens are single-use, so this is cleared (and the widget
+  // reset) after every failed submission, not just successful ones —
+  // see the catch block in submit() below.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileError, setTurnstileError] = useState(false);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   const {
     register,
@@ -53,17 +62,29 @@ export function RegisterForm() {
     values: RegisterFormValues,
     acknowledgeWeakPassword: boolean,
   ) => {
+    if (!turnstileToken) {
+      return;
+    }
+
     try {
       await registerMutation.mutateAsync({
         email: values.email,
         password: values.password,
         firstName: values.firstName,
         lastName: values.lastName,
+        turnstileToken,
         ...(acknowledgeWeakPassword ? { acknowledgeWeakPassword: true } : {}),
       });
       toast.success("Account created — welcome aboard!");
       router.push(redirectTo);
     } catch (error) {
+      // The token above was already spent by this attempt's TurnstileGuard
+      // verification, win or lose — reset so the widget issues a fresh one
+      // before either the retry button or the weak-password confirm below
+      // can be used again.
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+
       if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {
         setWeakPasswordWarning(true);
         return;
@@ -162,6 +183,27 @@ export function RegisterForm() {
         )}
       </FormField>
 
+      <div className="flex flex-col gap-2">
+        <TurnstileWidget
+          ref={turnstileRef}
+          onVerify={(token) => {
+            setTurnstileToken(token);
+            setTurnstileError(false);
+          }}
+          onExpire={() => setTurnstileToken(null)}
+          onError={() => {
+            setTurnstileToken(null);
+            setTurnstileError(true);
+          }}
+        />
+        {turnstileError && (
+          <Alert tone="danger">
+            Captcha failed to load. Please disable any content blockers and
+            refresh the page.
+          </Alert>
+        )}
+      </div>
+
       {weakPasswordWarning && (
         <Alert tone="danger">
           <p>
@@ -173,6 +215,7 @@ export function RegisterForm() {
             variant="secondary"
             className="mt-3"
             isLoading={registerMutation.isPending}
+            disabled={!turnstileToken}
             onClick={confirmWeakPassword}
           >
             Use this password anyway
@@ -187,6 +230,7 @@ export function RegisterForm() {
       <Button
         type="submit"
         isLoading={registerMutation.isPending && !weakPasswordWarning}
+        disabled={!turnstileToken}
         className="mt-1"
       >
         Create account

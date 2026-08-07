@@ -1,13 +1,5 @@
 [
   {
-    "name": "keep-latest-tag",
-    "action": { "type": "Keep" },
-    "condition": {
-      "tagState": "TAGGED",
-      "tagPrefixes": ["latest"]
-    }
-  },
-  {
     "name": "keep-recent-versions",
     "action": { "type": "Keep" },
     "mostRecentVersions": {
@@ -15,10 +7,10 @@
     }
   },
   {
-    "name": "delete-untagged",
+    "name": "delete-old-versions",
     "action": { "type": "Delete" },
     "condition": {
-      "tagState": "UNTAGGED",
+      "tagState": "any",
       "olderThan": "86400s"
     }
   }

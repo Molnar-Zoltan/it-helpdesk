@@ -201,7 +201,6 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
    - 9.1 Backend — Gemini tool-calling into `TicketsService.create()`
    - 9.2 Frontend — chat UI
    - 9.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
-10. ⬜ Deploy (Google Cloud Run backend, Vercel frontend, Neon/Upstash) + README polish
 
 Also on the list, not yet slotted into a numbered step:
 

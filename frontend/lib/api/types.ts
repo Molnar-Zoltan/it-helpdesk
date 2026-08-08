@@ -98,7 +98,7 @@ export interface CreateTicketPayload {
 
 /** POST /tickets response — the created Ticket row, per
  * TicketsService.create() / schema.prisma's Ticket model. agentId/status
- * are always null/OPEN on creation (no assignment until Step 8), but
+ * are always null/OPEN on creation (no assignment until Step 9), but
  * typed fully here since GET endpoints will return the same shape.
  * close/reopen fields are always null on a freshly created ticket, but
  * populated once PATCH /tickets/:id/close or /reopen has run — the

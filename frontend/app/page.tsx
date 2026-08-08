@@ -9,8 +9,9 @@ const phases: Phase[] = [
   { label: "Auth & sessions", status: "done" },
   { label: "Account self-service", status: "done" },
   { label: "Manual ticket creation", status: "done" },
-  { label: "Rate limiting", status: "planned" },
-  { label: "Cloudflare Turnstile captcha", status: "planned" },
+  { label: "Rate limiting", status: "done" },
+  { label: "Cloudflare Turnstile captcha", status: "done" },
+  { label: "CI/CD pipeline", status: "done" },
   { label: "Agent dashboard", status: "planned" },
   { label: "AI chat ticket path", status: "planned" },
 ];
@@ -48,9 +49,10 @@ export default function Home() {
           or a conversation with an AI assistant that extracts the details
           automatically — both paths run through the same validation, so
           the AI can never create a ticket the form wouldn&apos;t allow.
-          It&apos;s under active development: auth, account management, and
-          manual ticket filing are all live below — rate limiting and the
-          AI chat path are being built next.
+          It&apos;s under active development: auth, account management,
+          manual ticket filing, rate limiting, and CAPTCHA-protected
+          registration are all live below, deploying automatically on every
+          push — the agent dashboard and AI chat path are being built next.
         </p>
 
         <AuthStatusBanner />

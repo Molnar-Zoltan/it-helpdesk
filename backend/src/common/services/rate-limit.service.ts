@@ -20,7 +20,7 @@ export interface RateLimitStatus {
  * architecture.md's rate-limiting table — this is what lets a correct
  * password on an early attempt clear the slate instead of counting against
  * the user forever within the window). Other consumers (ticket-creation
- * and ticket-message cooldowns, Step 9's AI daily limit) instead increment
+ * and ticket-message cooldowns, Step 10's AI daily limit) instead increment
  * unconditionally from within the guard itself, since every attempt there
  * costs the same regardless of outcome — increment()'s naming is
  * deliberately neutral to fit both.

@@ -62,7 +62,7 @@ NestJS API (Google Cloud Run)
 
 Manual ticket submissions and AI-chat ticket submissions are two separate entry points that both call the same `TicketsService.create()` — see [docs/architecture.md](docs/architecture.md) for the full flow diagram.
 
-`RateLimitService` (Redis-backed, `ioredis` over TCP) is shared across rate-limited surfaces with different policies: login (5 attempts/15 min, email+IP — done, Step 6), ticket creation and messages (60s/10s anti-spam cooldowns, protecting the public demo — done, Step 6), and AI chat (10 req/day/user — Step 9). Registration uses Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter — done, Step 7. See [Roadmap](#roadmap).
+`RateLimitService` (Redis-backed, `ioredis` over TCP) is shared across rate-limited surfaces with different policies: login (5 attempts/15 min, email+IP — done, Step 6), ticket creation and messages (60s/10s anti-spam cooldowns, protecting the public demo — done, Step 6), and AI chat (10 req/day/user — Step 10). Registration uses Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter — done, Step 7. See [Roadmap](#roadmap).
 
 Redis is accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
 
@@ -191,16 +191,20 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
 7. ✅ Cloudflare Turnstile on registration
    - 7.1 ✅ Backend — `TurnstileGuard` gates `POST /auth/register`, reading `turnstileToken` off the raw request body the same way `LoginRateLimitGuard` reads `email` (guards run before the `ValidationPipe`, so it's never added to `RegisterDto`). `TurnstileService` (`common/services/`) verifies against Cloudflare's siteverify API — deliberately **fails closed**, unlike the HIBP breach check's fail-open design, since Turnstile is the actual anti-bot gate rather than an advisory signal; an unreachable/slow/erroring siteverify call is treated as a failed verification. Local/sandbox dev uses Cloudflare's official "always passes" test secret key instead of a custom `NODE_ENV` bypass flag, so there's no security-relevant shortcut that could accidentally ship live.
    - 7.2 ✅ Frontend — `TurnstileWidget` (`app/register/_components/`, not yet promoted to `components/ui/` — register is its only consumer so far) loads Cloudflare's script via `next/script`'s `onReady` callback (not `onLoad`, which only fires once per page load and wouldn't re-fire on a client-side return to `/register`), rendering the dark-themed challenge and exposing a `reset()` handle. Wired into `RegisterForm`: both the primary submit and the `WEAK_PASSWORD_WARNING` "use this password anyway" resubmit are disabled until a token exists. Turnstile tokens are single-use, and `TurnstileGuard` spends the token on *every* `POST /auth/register` call regardless of outcome — including the `acknowledgeWeakPassword` resubmit, which is a second call through the same guard. Without accounting for that, the resubmit would fail with Cloudflare's "token already spent" rejection; fixed by resetting the widget and clearing the token after *any* failed submission, not just Turnstile-specific ones.
+8. ✅ CI/CD pipeline — automated backend build, migrate, and deploy on every push to `main`
+   - 8.1 ✅ Versioning + changelog — `cliff.toml` + a `release` job in `.github/workflows/backend-release.yml` that computes the next semver from conventional-commit history since the last tag (its own grep-based logic, not git-cliff's `[bump]` engine — `no_increment_regex` is accepted in config but confirmed to have no actual effect), generates/prepends `CHANGELOG.md`, bumps `package.json`, and tags `main`. `infra/artifact-registry-cleanup-policy.json` keeps the 3 most recently pushed backend images and deletes anything older than a day regardless of tag state, keeping storage inside Artifact Registry's free tier.
+   - 8.2 ✅ GCP Workload Identity Federation — a dedicated `github-actions-deployer` service account, authenticated via WIF and scoped to this repo's `main` branch only (no service account key ever generated, stored, or rotated). Minimal role set: `artifactregistry.writer`, `run.developer`, and `iam.serviceAccountUser` on the Cloud Run service's runtime identity — deliberately not `run.admin`, since deploys never touch the service's own IAM policy.
+   - 8.3 ✅ `deploy-backend` job — gated on both a real release (`released == 'true'`) and a `dorny/paths-filter` check on `backend/**`/`packages/shared/**`, so a frontend-only release never rebuilds or redeploys an unchanged backend. Runs `prisma migrate deploy` against Neon from the runner *before* the image is built, so a new revision is never deployed against a schema it doesn't expect; builds/pushes the backend image tagged with the release version plus `latest`; deploys via `google-github-actions/deploy-cloudrun` with no `--set-env-vars`, so the Redis/Turnstile/JWT config already sitting on the Cloud Run service is left untouched. Exercised end-to-end on a real multi-commit `develop`→`main` merge plus a trial `fix:` commit, which surfaced and fixed two real bugs along the way: a missing `checkout` step ahead of `paths-filter` (it runs `git diff` locally, not via the GitHub API, so the job had no `.git` to diff against) and a missing explicit `docker/setup-buildx-action` step.
 
 **Left**
 
-8. ⬜ Agent dashboard
-   - 8.1 Backend — queue/filtering/assignment endpoints, agent-driven status transitions beyond the current customer-only close/reopen
-   - 8.2 Frontend — dashboard UI
-9. ⬜ AI chat ticket path
-   - 9.1 Backend — Gemini tool-calling into `TicketsService.create()`
-   - 9.2 Frontend — chat UI
-   - 9.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
+9. ⬜ Agent dashboard
+   - 9.1 Backend — queue/filtering/assignment endpoints, agent-driven status transitions beyond the current customer-only close/reopen
+   - 9.2 Frontend — dashboard UI
+10. ⬜ AI chat ticket path
+    - 10.1 Backend — Gemini tool-calling into `TicketsService.create()`
+    - 10.2 Frontend — chat UI
+    - 10.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
 
 Also on the list, not yet slotted into a numbered step:
 

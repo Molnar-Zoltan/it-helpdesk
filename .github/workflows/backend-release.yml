@@ -6,10 +6,17 @@ name: Release
 # docs-only or frontend-only push computes the same version as before and
 # exits early, so this never fires a pointless release.
 #
-# A future "deploy-backend" job (Phase 3) will run `needs: release`, gated on
-# both `needs.release.outputs.released == 'true'` AND a path filter on
-# backend/**  + packages/shared/**, so a release triggered by frontend-only
-# work never rebuilds/redeploys an unchanged backend.
+# Phase 3: the "deploy-backend" job runs `needs: [release, changes]`, gated on
+# both `needs.release.outputs.released == 'true'` AND `needs.changes.outputs.backend
+# == 'true'` (a dorny/paths-filter check on backend/** + packages/shared/**), so a
+# release triggered by frontend-only work never rebuilds/redeploys an unchanged
+# backend. Auth to GCP is via Workload Identity Federation (no service account key
+# — see infra/README.md#workload-identity-federation for the one-time setup this
+# depends on). Migrations run against Neon from the runner BEFORE the image is
+# built/deployed, so a new image is never deployed against a schema it doesn't
+# expect; the accepted tradeoff is a brief window where the outgoing revision keeps
+# serving traffic against the already-migrated schema, judged acceptable for a
+# solo project with no concurrent-user risk.
 
 on:
   push:
@@ -147,3 +154,100 @@ jobs:
           git tag "$NEXT_VERSION"
           git push origin HEAD:main
           git push origin "$NEXT_VERSION"
+
+  changes:
+    # Cheap path check, run in parallel with `release` rather than after it —
+    # nothing here depends on the version bump, only on what this push touched.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Check for backend-affecting changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'packages/shared/**'
+
+  deploy-backend:
+    needs: [release, changes]
+    # Only deploy when this push both (a) produced a real release — i.e. contained
+    # a feat/fix/breaking commit, not just a docs/chore/frontend-only push — and
+    # (b) actually touched backend/** or packages/shared/**. Either condition alone
+    # isn't enough: a frontend-only feat shouldn't redeploy an unchanged backend,
+    # and a backend refactor that isn't feat/fix/breaking doesn't warrant a new
+    # release or a redeploy on its own.
+    if: needs.release.outputs.released == 'true' && needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run pending migrations against Neon
+        # Runs from the GitHub Actions runner, not inside the container — this is
+        # a separate, one-off CLI invocation against the production DATABASE_URL,
+        # distinct from the app's own runtime env vars (which stay configured
+        # directly on the Cloud Run service and are never touched by this
+        # workflow). Deliberately runs BEFORE the image is built/deployed so the
+        # new revision never starts against a schema it doesn't expect yet.
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          token_format: "access_token"
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Build and push backend image
+        # Tagged with the version this job's own `release` job just cut, not a
+        # commit SHA — this is what infra/README.md's cleanup policy already
+        # assumes (a permanent vX.Y.Z tag per release, `latest` repointed each
+        # time), and it's a rollback target with actual meaning: `gcloud run
+        # deploy --image=...backend:v0.8.0` reads immediately in a way a SHA
+        # tag wouldn't.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:latest
+            us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:${{ needs.release.outputs.version }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: it-helpdesk-backend
+          region: us-central1
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # No --set-env-vars equivalent here on purpose: Redis/Turnstile/JWT env
+          # vars already live directly on the Cloud Run service (see README) and
+          # a new revision inherits them unchanged — this workflow only ever
+          # changes which image is running.
+          image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:${{ needs.release.outputs.version }}

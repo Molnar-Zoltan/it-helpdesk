@@ -57,22 +57,29 @@ COPY backend/package*.json ./backend/
 #    @prisma/client-runtime-utils and Node built-ins.
 #
 # 2. @prisma/client's WASM query compiler (Prisma 7's Rust-free engine)
-#    ships a separate ~9-10MB binary pair (.js + .mjs) for EVERY supported
-#    database — postgresql, mysql, sqlite, sqlserver, cockroachdb — even
-#    though this project only ever uses postgresql. This is a known,
-#    currently-unresolved Prisma limitation, not something schema.prisma
-#    can configure away yet (see prisma/prisma#29095). The .mjs half (36MB)
-#    is provably dead regardless of provider: this project's generator sets
-#    moduleFormat = "cjs", and Node's require() can never load a .mjs file —
-#    that's a hard runtime rule, not a guess.
+#    ships a separate binary pair (.js + .mjs) for EVERY supported database
+#    — postgresql, mysql, sqlite, sqlserver, cockroachdb — times two build
+#    variants (fast/small), even though this project only ever uses one
+#    provider. This is a known, currently-unresolved Prisma limitation, not
+#    something schema.prisma can configure away yet (see
+#    prisma/prisma#29095). The .mjs half is provably dead regardless of
+#    provider: this project's generator sets moduleFormat = "cjs", and
+#    Node's require() can never load a .mjs file — that's a hard runtime
+#    rule, not a guess.
 #
-#    The remaining .js variants for mysql/sqlite/sqlserver/cockroachdb
-#    (~35MB more) are NOT removed here — verify locally which file the real
-#    generated client references first:
-#      grep -r query_compiler backend/generated/prisma/*.js
-#    then extend this rm -rf once confirmed. Deleting the wrong one silently
-#    breaks the app at runtime, so this step is deliberately left for local
-#    verification rather than guessed at here.
+#    Which .js file is actually used is NOT a guess either — confirmed via
+#    `grep -rn query_compiler backend/generated/prisma/` against a real
+#    `prisma generate` output (this sandbox can't run that itself, no
+#    access to binaries.prisma.sh, so this was verified locally instead):
+#    backend/generated/prisma/internal/class.ts statically imports exactly
+#    query_compiler_fast_bg.postgresql.js and
+#    query_compiler_fast_bg.postgresql.wasm-base64.js — the "fast" build
+#    (this project never sets compilerBuild = "small"), postgresql only.
+#    Every other provider/variant combination is confirmed unreferenced and
+#    removed below. Verified end-to-end after this change: built the image,
+#    ran it against local Postgres/Redis, and confirmed a real Prisma query
+#    (POST /auth/login against a seeded account) still returns a valid
+#    token pair — not just that the app boots.
 #
 # Re-verify both lists if @prisma/client is bumped to a new major/minor.
 RUN npm ci --omit=dev --workspace=backend --ignore-scripts && \
@@ -92,7 +99,25 @@ RUN npm ci --omit=dev --workspace=backend --ignore-scripts && \
       node_modules/d3-array \
       node_modules/d3-shape \
       node_modules/@prisma/client/runtime/*.mjs \
-      node_modules/@prisma/client/runtime/*.mjs.map
+      node_modules/@prisma/client/runtime/*.mjs.map \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.mysql.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.mysql.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.sqlite.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.sqlite.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.sqlserver.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.sqlserver.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.cockroachdb.js \
+      node_modules/@prisma/client/runtime/query_compiler_fast_bg.cockroachdb.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.mysql.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.mysql.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.sqlite.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.sqlite.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.sqlserver.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.sqlserver.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.cockroachdb.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.cockroachdb.wasm-base64.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.postgresql.js \
+      node_modules/@prisma/client/runtime/query_compiler_small_bg.postgresql.wasm-base64.js
 
 # Copy built files from the compilation stage
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist

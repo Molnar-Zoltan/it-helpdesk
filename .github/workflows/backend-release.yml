@@ -163,6 +163,18 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
     steps:
+      - name: Checkout
+        # paths-filter needs an actual .git directory to diff against — without
+        # this, it fails immediately trying to resolve the current ref (this was
+        # missed the first time around: the action doesn't hit the GitHub API by
+        # default, it runs `git diff` against a local checkout). Full history,
+        # not a shallow fetch-depth: 2 — a push event can be a multi-commit merge
+        # (e.g. the upcoming develop -> main merge), and a shallow checkout can
+        # fail to reach github.event.before entirely in that case.
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Check for backend-affecting changes
         uses: dorny/paths-filter@v3
         id: filter

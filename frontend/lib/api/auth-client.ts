@@ -5,6 +5,7 @@ interface BackendErrorBody {
   statusCode: number;
   message: string | string[];
   error?: string;
+  retryAfterSeconds?: number;
 }
 
 async function postAuth(path: string, body?: unknown): Promise<void> {
@@ -38,7 +39,12 @@ async function postAuth(path: string, body?: unknown): Promise<void> {
     const message = Array.isArray(errorBody?.message)
       ? errorBody.message.join(", ")
       : (errorBody?.message ?? "Something went wrong. Please try again.");
-    throw new ApiError(res.status, message, errorBody?.error);
+    throw new ApiError(
+      res.status,
+      message,
+      errorBody?.error,
+      errorBody?.retryAfterSeconds,
+    );
   }
 }
 

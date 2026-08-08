@@ -16,6 +16,8 @@ import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { TicketCreateRateLimitGuard } from './guards/ticket-create-rate-limit.guard';
+import { TicketMessageRateLimitGuard } from './guards/ticket-message-rate-limit.guard';
 import type { AuthenticatedRequest } from '../common/types/authenticated-request.type';
 import { Role } from '../../generated/prisma/client';
 
@@ -25,6 +27,7 @@ export class TicketsController {
   constructor(private ticketsService: TicketsService) {}
 
   @Post()
+  @UseGuards(TicketCreateRateLimitGuard)
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateTicketDto) {
     return this.ticketsService.create(req.user.userId, dto);
   }
@@ -61,6 +64,7 @@ export class TicketsController {
   }
 
   @Post(':id/messages')
+  @UseGuards(TicketMessageRateLimitGuard)
   addMessage(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,

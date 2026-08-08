@@ -13,13 +13,13 @@ Creates a new account and returns an initial token pair.
 
 **Body**
 ```json
-{ "email": "user@example.com", "password": "string", "firstName": "string", "lastName": "string" }
+{ "email": "user@example.com", "password": "string", "firstName": "string", "lastName": "string", "turnstileToken": "string" }
 ```
 **Response** `200`
 ```json
 { "accessToken": "string", "refreshToken": "string" }
 ```
-**Errors**: `409` if the email is already registered.
+**Errors**: `409` if the email is already registered; `400` `TURNSTILE_VERIFICATION_FAILED` if `turnstileToken` is missing, invalid, expired, already used, or Cloudflare's siteverify API couldn't be reached — see [Registration CAPTCHA](#registration-captcha) below.
 
 ### `POST /auth/login`
 Authenticates with email/password and returns a fresh token pair.
@@ -29,7 +29,7 @@ Authenticates with email/password and returns a fresh token pair.
 { "email": "user@example.com", "password": "string" }
 ```
 **Response** `200`: same shape as `/auth/register`.
-**Errors**: `401` on invalid credentials.
+**Errors**: `401` on invalid credentials; `429` `LOGIN_RATE_LIMITED` if this email+IP pair has hit 5 failed attempts within the last 15 minutes — see [Login rate limiting](#login-rate-limiting) below.
 
 ### `POST /auth/refresh`
 Rotates a refresh token: the one supplied is revoked, and a new access/refresh pair is issued.
@@ -49,6 +49,34 @@ Revokes a refresh token, ending that session.
 { "refreshToken": "string" }
 ```
 **Response** `200`, no meaningful body.
+
+### Login rate limiting
+
+`POST /auth/login` is guarded by a Redis-backed limiter (`LoginRateLimitGuard`): 5 failed attempts within a 15-minute window for a given email+IP pair returns `429`:
+
+```json
+{ "statusCode": 429, "error": "LOGIN_RATE_LIMITED", "message": "Too many login attempts. Please try again later.", "retryAfterSeconds": 612 }
+```
+
+`retryAfterSeconds` is read straight off the Redis key's remaining TTL, so it's always accurate to the second rather than a rounded-down window estimate — the frontend's login form uses it to show a live countdown.
+
+Keyed on email+IP together (`ratelimit:login:{emailHash}:{ipHash}`, both SHA-256-truncated so raw emails/IPs never sit in Redis), not either alone — IP-only would let one bad actor lock out everyone behind the same NAT, email-only would let someone hammer a single account from many IPs. Only *failed* attempts increment the counter, and a successful login resets it — a mistyped password early on doesn't count against the rest of the window once the user gets it right (see `docs/architecture.md#rate-limiting` for the full design).
+
+Since the backend's Cloud Run instance only ever sees connections from either the frontend's server-side proxy or a direct caller, `main.ts` sets `trust proxy` to trust exactly one hop (Cloud Run's Google Front End) so `req.ip` reflects the real client rather than the connecting proxy's own address; the frontend's `/api/auth/login` route handler explicitly forwards the browser's `x-forwarded-for` header for the same reason.
+
+### Registration CAPTCHA
+
+`POST /auth/register` is guarded by `TurnstileGuard`, which verifies the request's `turnstileToken` against Cloudflare's Turnstile siteverify API before the request reaches `RegisterDto` validation. A missing, invalid, expired, or already-spent token returns `400`:
+
+```json
+{ "statusCode": 400, "error": "TURNSTILE_VERIFICATION_FAILED", "message": "Captcha verification failed. Please try again." }
+```
+
+Unlike the HIBP breach check on password strength (an advisory soft-warning that fails open if the check's own API is unreachable), Turnstile is a hard anti-bot gate and fails **closed**: if Cloudflare's siteverify API is unreachable, slow, or errors, the token is treated as failed verification rather than let through. A brief Cloudflare outage blocking new registrations is judged a smaller cost than silently having no bot protection during that window.
+
+Turnstile tokens are single-use — a token consumed by one `POST /auth/register` call (successful or not) can't be reused on a second call, including a resubmit after a `422 WEAK_PASSWORD_WARNING` on the same request. The frontend's register form resets its Turnstile widget and requires a fresh token before any resubmit for this reason.
+
+Registration uses a CAPTCHA challenge rather than a Redis-backed request counter (unlike login/ticket-creation/messages) because signup is a one-shot action — a counter can't distinguish a bot spinning up accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can (see `docs/architecture.md#rate-limiting`).
 
 ---
 
@@ -157,7 +185,7 @@ Creates a new ticket. `customerId` is always derived from the access token — i
   "agentId": null
 }
 ```
-**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content).
+**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content); `429` `TICKET_CREATE_RATE_LIMITED` if called again within 60 seconds of the last attempt — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets`
 Lists the authenticated user's own tickets, paginated and sortable.
@@ -226,13 +254,28 @@ Adds a message to a ticket's thread. `senderId` is always derived from the acces
   "senderId": "string"
 }
 ```
-**Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it.
+**Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it; `429` `TICKET_MESSAGE_RATE_LIMITED` if called again on the same ticket within 10 seconds of the last message — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets/:id/messages`
 Returns the full message thread for a ticket, ordered oldest-first (`createdAt` ascending — the reverse of `GET /tickets`' newest-first default, since a conversation reads chronologically). Same visibility rule as `POST /tickets/:id/messages`.
 
 **Response** `200`: array of Message objects, same shape as the `POST /tickets/:id/messages` response.
 **Errors**: `404` if the ticket doesn't exist or the requester can't access it.
+
+### Ticket rate limiting
+
+`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The three seeded demo accounts' credentials are published in this README for the live demo, and registration is open with no CAPTCHA until Step 7 lands, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
+
+| Endpoint | Cooldown | Key | Error |
+|---|---|---|---|
+| `POST /tickets` | 60 seconds | `ratelimit:ticket-create:{userId}` | `429 TICKET_CREATE_RATE_LIMITED` |
+| `POST /tickets/:id/messages` | 10 seconds | `ratelimit:ticket-message:{userId}:{ticketId}` | `429 TICKET_MESSAGE_RATE_LIMITED` |
+
+Both return the same shape as login's `429` (`retryAfterSeconds` read off the Redis key's TTL), and the frontend shows the same live countdown pattern on `/tickets/new` and a ticket's message composer.
+
+Every attempt counts against the cooldown, success or not — unlike login (which only counts *failed* attempts, so a mistyped password doesn't cost the window), the cost being defended against here is incurred by the attempt itself, not by whether it succeeds. Ticket creation gets a full minute since filing more than one new ticket within 60s isn't something a real user does; messages get a much shorter 10 seconds since a support thread is genuinely conversational and a longer cooldown would get in the way of a real back-and-forth — 10s is enough to stop a spam script firing requests back-to-back without a human ever noticing it's there.
+
+Messages are scoped per-ticket (not just per-user) so a cooldown on one thread doesn't block replying on another.
 
 ---
 
@@ -250,7 +293,7 @@ Returns the full message thread for a ticket, ordered oldest-first (`createdAt` 
 | `PATCH /users/me/email` | Yes | Yes | Yes, except current session | Yes |
 | `DELETE /users/me` | Yes | Yes | Yes, all (cascade) | Yes |
 
-The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column.
+The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` — `refreshTokenId` is what lets password/email change identify and exclude the calling session from bulk revocation. See [Demo account protection](#demo-account-protection) for the last column, [Login rate limiting](#login-rate-limiting) for `POST /auth/login`'s additional `429` case, and [Registration CAPTCHA](#registration-captcha) for `POST /auth/register`'s additional `400 TURNSTILE_VERIFICATION_FAILED` case (neither captured in this table, since both apply regardless of `Blocked on demo accounts` — demo accounts still need a valid Turnstile token to register, though in practice they're only ever seeded, not registered through this endpoint).
 
 ## Ticket endpoint access summary
 
@@ -267,6 +310,8 @@ The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` �
 Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.
 
 `POST /tickets/:id/messages` additionally 400s on a `CLOSED` ticket (`TICKET_CLOSED_CANNOT_MESSAGE`) — a closed ticket isn't being actively worked, so new messages are blocked until it's reopened. `GET /tickets/:id/messages` has no such restriction; the existing thread stays readable regardless of status.
+
+See [Ticket rate limiting](#ticket-rate-limiting) for `POST /tickets`' and `POST /tickets/:id/messages`' additional `429` case (not captured in this table, since it applies the same way regardless of `Visible to`).
 
 ---
 

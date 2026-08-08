@@ -1,0 +1,261 @@
+name: Release
+
+# Versioning + changelog for the whole monorepo (one version, not per-workspace).
+# The "release" job below always runs on push to main but only actually cuts a
+# release when there's a feat/fix/breaking commit since the last tag — a
+# docs-only or frontend-only push computes the same version as before and
+# exits early, so this never fires a pointless release.
+#
+# Phase 3: the "deploy-backend" job runs `needs: [release, changes]`, gated on
+# both `needs.release.outputs.released == 'true'` AND `needs.changes.outputs.backend
+# == 'true'` (a dorny/paths-filter check on backend/** + packages/shared/**), so a
+# release triggered by frontend-only work never rebuilds/redeploys an unchanged
+# backend. Auth to GCP is via Workload Identity Federation (no service account key
+# — see infra/README.md#workload-identity-federation for the one-time setup this
+# depends on). Migrations run against Neon from the runner BEFORE the image is
+# built/deployed, so a new image is never deployed against a schema it doesn't
+# expect; the accepted tradeoff is a brief window where the outgoing revision keeps
+# serving traffic against the already-migrated schema, judged acceptable for a
+# solo project with no concurrent-user risk.
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Defense in depth: pushes made with the default GITHUB_TOKEN don't
+    # retrigger workflows, so this job's own release commit can't normally
+    # cause a recursive run — but skip explicitly anyway in case that ever
+    # changes or a PAT gets swapped in later.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.version.outputs.released }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@git-cliff
+
+      - name: Compute next version
+        id: version
+        run: |
+          # NOTE: this does NOT use git-cliff's own `--bumped-version` / [bump]
+          # engine. As of git-cliff 2.13.0, the documented `no_increment_regex`
+          # option (meant to stop chore/ci/docs-only commits from triggering a
+          # bump) is accepted in cliff.toml but verified to have no actual
+          # effect - a chore-only commit still bumps a patch version with it
+          # set. Rather than ship a release gate that silently doesn't gate,
+          # the bump decision is computed here from plain conventional-commit
+          # grep, tested against real feat/fix/breaking/chore-only scenarios
+          # before this workflow was written. git-cliff is used below only to
+          # render the changelog body, which does work correctly.
+          set -euo pipefail
+
+          CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$CURRENT_TAG" ]; then
+            echo "No tags found — this repo needs a seed tag (e.g. v0.7.0) before this workflow can compute a next version."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SUBJECTS=$(git log "${CURRENT_TAG}..HEAD" --pretty=%s || true)
+          BODIES=$(git log "${CURRENT_TAG}..HEAD" --pretty=%B || true)
+
+          BUMP="none"
+          if echo "$SUBJECTS" | grep -qE '^[a-zA-Z]+(\([a-zA-Z0-9_.-]+\))?!:'; then
+            BUMP="major"
+          elif echo "$BODIES" | grep -q "^BREAKING CHANGE:"; then
+            BUMP="major"
+          elif echo "$SUBJECTS" | grep -qE '^feat(\([a-zA-Z0-9_.-]+\))?:'; then
+            BUMP="minor"
+          elif echo "$SUBJECTS" | grep -qE '^fix(\([a-zA-Z0-9_.-]+\))?:'; then
+            BUMP="patch"
+          fi
+
+          echo "Current tag: $CURRENT_TAG"
+          echo "Bump type: $BUMP"
+
+          if [ "$BUMP" = "none" ]; then
+            echo "No feat/fix/breaking commits since $CURRENT_TAG — skipping release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_VERSION="${CURRENT_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          case "$BUMP" in
+            major)
+              # While the major version is 0, a breaking change bumps minor
+              # rather than jumping straight to 1.0.0 — 1.0.0 is reserved for
+              # deliberately marking the full roadmap (Steps 1-9) complete,
+              # not triggered incidentally by a breaking-change commit.
+              if [ "$MAJOR" = "0" ]; then
+                MINOR=$((MINOR + 1)); PATCH=0
+              else
+                MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+              fi
+              ;;
+            minor)
+              MINOR=$((MINOR + 1)); PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog, bump package.json, tag, and push
+        if: steps.version.outputs.released == 'true'
+        id: release
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ -f CHANGELOG.md ]; then
+            git-cliff --tag "$NEXT_VERSION" --unreleased --prepend CHANGELOG.md
+          else
+            git-cliff --tag "$NEXT_VERSION" --unreleased -o CHANGELOG.md
+          fi
+
+          VERSION_NO_V="${NEXT_VERSION#v}"
+          npm version "$VERSION_NO_V" --no-git-tag-version --allow-same-version
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json
+          git commit -m "chore(release): ${NEXT_VERSION} [skip ci]"
+          git tag "$NEXT_VERSION"
+          git push origin HEAD:main
+          git push origin "$NEXT_VERSION"
+
+  changes:
+    # Cheap path check, run in parallel with `release` rather than after it —
+    # nothing here depends on the version bump, only on what this push touched.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Check for backend-affecting changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'packages/shared/**'
+
+  deploy-backend:
+    needs: [release, changes]
+    # Only deploy when this push both (a) produced a real release — i.e. contained
+    # a feat/fix/breaking commit, not just a docs/chore/frontend-only push — and
+    # (b) actually touched backend/** or packages/shared/**. Either condition alone
+    # isn't enough: a frontend-only feat shouldn't redeploy an unchanged backend,
+    # and a backend refactor that isn't feat/fix/breaking doesn't warrant a new
+    # release or a redeploy on its own.
+    if: needs.release.outputs.released == 'true' && needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run pending migrations against Neon
+        # Runs from the GitHub Actions runner, not inside the container — this is
+        # a separate, one-off CLI invocation against the production DATABASE_URL,
+        # distinct from the app's own runtime env vars (which stay configured
+        # directly on the Cloud Run service and are never touched by this
+        # workflow). Deliberately runs BEFORE the image is built/deployed so the
+        # new revision never starts against a schema it doesn't expect yet.
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          token_format: "access_token"
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up Docker Buildx
+        # docker/build-push-action needs an active Buildx builder to run against;
+        # GitHub's runners often have a usable default already, but that's an
+        # implicit assumption worth making explicit rather than relying on —
+        # this step creates and activates a real builder (with layer caching)
+        # instead of leaving it to whatever fallback happens to be present.
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        # Tagged with the version this job's own `release` job just cut, not a
+        # commit SHA — this is what infra/README.md's cleanup policy already
+        # assumes (a permanent vX.Y.Z tag per release, `latest` repointed each
+        # time), and it's a rollback target with actual meaning: `gcloud run
+        # deploy --image=...backend:v0.8.0` reads immediately in a way a SHA
+        # tag wouldn't.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:latest
+            us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:${{ needs.release.outputs.version }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: it-helpdesk-backend
+          region: us-central1
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # No --set-env-vars equivalent here on purpose: Redis/Turnstile/JWT env
+          # vars already live directly on the Cloud Run service (see README) and
+          # a new revision inherits them unchanged — this workflow only ever
+          # changes which image is running.
+          image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/it-helpdesk/backend:${{ needs.release.outputs.version }}

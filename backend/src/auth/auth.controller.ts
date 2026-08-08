@@ -1,15 +1,25 @@
-import { Body, Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  HttpCode,
+  HttpStatus,
+  Ip,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
+import { TurnstileGuard } from './guards/turnstile.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(TurnstileGuard)
   register(@Body() dto: RegisterDto) {
-    // TODO Step 6: Turnstile guard here
     return this.authService.register(
       dto.email,
       dto.password,
@@ -21,9 +31,9 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() dto: LoginDto) {
-    // TODO Step 6: RateLimitGuard (5/15min) here
-    return this.authService.login(dto.email, dto.password);
+  @UseGuards(LoginRateLimitGuard)
+  login(@Body() dto: LoginDto, @Ip() ip: string) {
+    return this.authService.login(dto.email, dto.password, ip);
   }
 
   @Post('refresh')

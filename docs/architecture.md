@@ -18,18 +18,20 @@ backend/src/
   auth/
   users/
   tickets/
+  redis/
 
 backend/prisma/
   prisma.module.ts
   prisma.service.ts
 ```
 
-- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `strategies/jwt.strategy.ts`, `token.util.ts`.
+- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `guards/login-rate-limit.guard.ts` (Step 6), `login-rate-limit.util.ts`, `exceptions/login-rate-limited.exception.ts`, `strategies/jwt.strategy.ts`, `token.util.ts`.
 - `backend/src/users/` — owns authenticated self-service account actions for the signed-in user; main files: `users.controller.ts`, `users.service.ts`, `users.module.ts`, `dto/change-email.dto.ts`, `dto/change-password.dto.ts`, `dto/delete-account.dto.ts`, `dto/update-name.dto.ts`, `types/authenticated-request.type.ts`.
-- `backend/src/tickets/` — manual ticket creation and self-service ticket management for customers; main files: `tickets.controller.ts`, `tickets.service.ts`, `tickets.module.ts`, `dto/create-ticket.dto.ts`, `dto/find-tickets-query.dto.ts`, `dto/close-ticket.dto.ts`, `dto/reopen-ticket.dto.ts`, `dto/create-message.dto.ts`. See [Manual ticket creation](#manual-ticket-creation) below for the design decisions behind it.
+- `backend/src/tickets/` — manual ticket creation and self-service ticket management for customers; main files: `tickets.controller.ts`, `tickets.service.ts`, `tickets.module.ts`, `dto/create-ticket.dto.ts`, `dto/find-tickets-query.dto.ts`, `dto/close-ticket.dto.ts`, `dto/reopen-ticket.dto.ts`, `dto/create-message.dto.ts`, `guards/ticket-create-rate-limit.guard.ts`, `guards/ticket-message-rate-limit.guard.ts` (Step 6), `exceptions/ticket-create-rate-limited.exception.ts`, `exceptions/ticket-message-rate-limited.exception.ts`. See [Manual ticket creation](#manual-ticket-creation) below for the design decisions behind it.
+- `backend/src/redis/` — global module wrapping a single `ioredis` client (`REDIS_URL`); main files: `redis.module.ts`, `redis.service.ts`. Consumed by `common/services/rate-limit.service.ts` (see [Rate limiting](#rate-limiting) below), not called directly by feature modules.
 - `backend/prisma/` — shared persistence wiring for Prisma access and database setup; main files: `prisma.service.ts`, `prisma.module.ts`, `schema.prisma`, `seed.ts`.
 
-No `ai/` or `rate-limit/` modules are implemented yet, so those responsibilities are still centralized rather than split into dedicated Nest modules.
+No `ai/` module is implemented yet, so AI-related responsibilities (Step 9) are still centralized rather than split into a dedicated Nest module.
 
 ## Manual ticket creation
 
@@ -41,6 +43,7 @@ No `ai/` or `rate-limit/` modules are implemented yet, so those responsibilities
 - **Close and reopen are narrow, single-purpose endpoints, not a general status-update route.** `PATCH /tickets/:id/close` only ever moves a ticket toward `CLOSED`; `PATCH /tickets/:id/reopen` only ever moves a `CLOSED` ticket back to `OPEN`. Broader agent-driven status transitions (e.g. `IN_PROGRESS` → `RESOLVED`) are left for Step 8, once an agent can actually be assigned to a ticket.
 - **Message visibility is currently role-based, not assignment-based.** `TicketsService.assertCanAccessMessages` allows the owning customer or *any* `AGENT`/`ADMIN` to read and post messages on a ticket, because `agentId` is always `null` until Step 8 introduces assignment. Once assignment exists, this should narrow to "the assigned agent (or an unassigned ticket) plus `ADMIN`" — flagged in code and tracked as a Step 8 follow-up.
 - **Close/reopen reasons are single-snapshot fields, not a history table.** `closeReason`/`closedAt`/`closedBy` and `reopenReason`/`reopenedAt`/`reopenedBy` are plain nullable columns on `Ticket`, overwritten on each repeat close/reopen cycle rather than preserving every prior transition. A dedicated `TicketStatusChange` table is a possible future upgrade if that cycling turns out to matter in practice — not scheduled.
+- **Creation and messages carry an anti-spam cooldown, not just validation.** `TicketCreateRateLimitGuard` (60s) and `TicketMessageRateLimitGuard` (10s, per-ticket) sit in `tickets/guards/`, reusing the same `RateLimitService` primitives as login's rate limit — see [Rate limiting](#rate-limiting) below for why these needed a different counting shape than login's.
 
 ## Validation
 
@@ -56,17 +59,31 @@ See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-f
 
 ## Rate limiting
 
-One `RateLimitGuard`, backed by Redis (Upstash REST — no persistent connection needed, which matters since the backend on Google Cloud Run can scale to zero), is reused across three surfaces with different policies:
+`RateLimitService` (`backend/src/common/services/rate-limit.service.ts`), backed by Redis via `ioredis` over a plain TCP connection (not Upstash's REST client — see [Getting started](../README.md#getting-started); this is the same connection code unchanged against the local Docker Redis container and Upstash in production, just a different `REDIS_URL`), exposes generic primitives — `isLimited`, `increment`, `reset` — rather than one monolithic guard class. Each rate-limited surface gets its own thin guard/service wiring on top of the same primitives, so the counting semantics (what counts as an "attempt," when to reset) can differ per surface without duplicating the Redis logic itself:
 
-| Surface | Policy | Key |
-|---|---|---|
-| AI chat | 10 requests / day / user | `ratelimit:ai:{userId}:{date}` |
-| Login | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` |
-| Registration | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter |
+| Surface | Policy | Key | Counts |
+|---|---|---|---|
+| Login (Step 6, done) | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` | Failed attempts only — `AuthService.login` resets the counter on success, so an early typo doesn't cost the rest of the window once the password's right |
+| Ticket creation (Step 6, done) | 1 per 60 sec | `ratelimit:ticket-create:{userId}` | Every attempt, regardless of outcome |
+| Ticket messages (Step 6, done) | 1 per 10 sec, per ticket | `ratelimit:ticket-message:{userId}:{ticketId}` | Every attempt, regardless of outcome |
+| AI chat (Step 9) | 10 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
+| Registration (Step 7, done) | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter | — |
 
-Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit.
+Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit. `LoginRateLimitGuard` only *checks* the limit (via `RateLimitService.isLimited`) before the request reaches `AuthService`; it's `AuthService.login` that calls `increment`/`reset` once it actually knows whether the attempt succeeded, since a guard's `canActivate` runs before the route handler and has no visibility into that outcome.
 
-Registration uses Turnstile instead of a request counter because signup is a one-shot action — a counter can't distinguish a bot spinning up new accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can.
+Both the guard and `AuthService` need to land on the identical Redis key for the same email+IP pair, so the key format itself lives in one place (`backend/src/auth/login-rate-limit.util.ts`) rather than two independently maintained string templates.
+
+**Getting a real client IP required a prerequisite fix.** The frontend's BFF layer talks to the backend server-to-server (`backendFetch`), which never carries the browser's own connection — without intervention, every login through the actual website would be keyed on the frontend server's own IP, not the visitor's. `main.ts` sets `trust proxy` to `1` (Cloud Run's Google Front End is the one trusted hop, and it appends the real client IP after receipt, so it can't be spoofed by a direct caller), and the frontend's `/api/auth/login` route handler explicitly forwards the incoming request's `x-forwarded-for` header on the backend call.
+
+**Ticket creation and messages are a different shape of problem — anti-spam, not brute-force protection.** The three seeded demo accounts' credentials are published in the README for the live demo, and registration is open with no CAPTCHA until Step 7, so either path is an easy way to flood the shared demo (or any account) with junk data. Because the cost here is incurred by the *attempt* itself, not by whether it succeeds, `TicketCreateRateLimitGuard` and `TicketMessageRateLimitGuard` are fully self-contained — they check and `increment` in the same pass, with no service-side success/failure bookkeeping needed (unlike login). Ticket creation gets a full 60-second cooldown, since filing more than one new ticket within a minute isn't something a real user does; messages get a much shorter 10 seconds, since a support thread is genuinely conversational and a longer cooldown would get in the way of a real back-and-forth. Messages are scoped per-ticket (not just per-user), so a cooldown on one thread doesn't block replying on another. See [api-endpoints.md#ticket-rate-limiting](api-endpoints.md#ticket-rate-limiting) for the exact error shape.
+
+Registration uses Turnstile instead of a request counter because signup is a one-shot action — a counter can't distinguish a bot spinning up new accounts from a genuine user who mistyped something on a first try, whereas a CAPTCHA challenge can. `TurnstileGuard` (`backend/src/auth/guards/`) reads `turnstileToken` off the raw request body — same reason `LoginRateLimitGuard` reads `email` raw, guards run before the `ValidationPipe` — and verifies it via `TurnstileService` (`backend/src/common/services/turnstile.service.ts`) against Cloudflare's siteverify API.
+
+**Turnstile fails closed, unlike the HIBP breach check.** `PwnedPasswordService`'s check is advisory (`WEAK_PASSWORD_WARNING` is a soft, confirmable warning), so it fails *open* if the HIBP API is unreachable — registration proceeds rather than blocking on an unrelated outage. Turnstile is the actual anti-bot gate, so `TurnstileService.verify()` deliberately fails *closed*: an unreachable, slow, or erroring siteverify call is treated the same as a failed verification, not let through. A brief Cloudflare outage blocking new signups is judged a smaller cost than silently having no bot protection during that window.
+
+**Turnstile tokens are single-use.** A token consumed by one `POST /auth/register` call — successful or not — can't be reused on a second call, including a resubmit after `acknowledgeWeakPassword: true`. The frontend's `RegisterForm` accounts for this: any failed registration attempt resets its `TurnstileWidget` and clears the stored token, requiring a fresh one before either the primary submit or the weak-password "use this password anyway" resubmit can fire again.
+
+**Local/sandbox dev uses Cloudflare's official "always passes" test keys** (`backend/.env.example`'s `TURNSTILE_SECRET_KEY`, `frontend/.env.example`'s `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) rather than a custom `NODE_ENV`-gated bypass — a real Cloudflare-provided testing mechanism, so there's no security-relevant shortcut in the codebase that could accidentally ship live. The secret key is backend-only; the site key is public by design (`NEXT_PUBLIC_`) and lives in the frontend's env only, since the backend never needs it.
 
 ## Account self-service & deletion (GDPR)
 
@@ -140,6 +157,7 @@ frontend/app/
     _components/
       register-form/
       password-requirements/    # live per-criterion checklist
+      turnstile-widget/         # Step 7.2 — Cloudflare CAPTCHA, register-only so far
   _components/
     auth-status-banner/       # home page only
 
@@ -160,6 +178,7 @@ frontend/proxy.ts
 - **The `WEAK_PASSWORD_WARNING` flow is handled inline, not with a modal.** On a `422` with `code === 'WEAK_PASSWORD_WARNING'`, the register form sets local state and renders a warning `Alert` with a "use this password anyway" button that resubmits the same form values plus `acknowledgeWeakPassword: true`. Editing the password field afterward clears the warning — an acknowledgement shouldn't silently carry over to a different password the user typed next.
 - **Register's fields validate at different times, deliberately.** firstName/lastName/email use `mode: "onTouched"` — validate once the field is first left, then live after that. Password and confirmPassword instead call `trigger()` manually inside their own `onChange` handlers, validating from the first keystroke — password to drive the live `PasswordRequirements` checklist, confirmPassword so a mismatch shows up immediately rather than waiting for blur or submit. `packages/shared/src/validation/password.ts` now exports the individual checks (`hasMinLength`/`hasUppercase`/`hasLowercase`/`hasDigit`/`hasSpecialChar`) alongside `isStrongPassword` (which just composes them) specifically so this checklist can't drift from what the backend enforces. Create-account intentionally stays enabled regardless of password strength — the checklist plus submit-time errors already explain what's wrong; a disabled button would only hide that information, not add any.
 - **`PasswordInput` (`components/ui/`) wraps `Input` with a show/hide toggle**, built directly as a `ui/` primitive rather than starting in a route's `_components/` — both `/login` and `/register` need it immediately, and Step 5.4's account password-change will be a third consumer.
+- **`TurnstileWidget` (Step 7.2, `register/_components/`) loads Cloudflare's script via `next/script`'s `onReady` callback, not `onLoad`.** `onLoad` only ever fires once per page load; `onReady` also fires on every mount, which matters for a per-instance widget if a visitor navigates back to `/register` client-side after the script already loaded once. It exposes a `reset()` handle via `forwardRef`/`useImperativeHandle` — see the Rate limiting section above for why `RegisterForm` needs to call it after every failed submission, not just Turnstile-specific failures. Not yet promoted to `components/ui/`, since register is its only consumer so far.
 - **`Header`'s logged-in state is a `UserMenu` dropdown, not inline text.** A user-icon button opens a menu with a non-clickable "Signed in as {firstName}" label, Account, and Log out — closes on outside click, `Escape`, or picking an item. `firstName` previously sat directly in the nav next to Tickets, sharing its color/spacing, which made it read as a (non-functional) nav link; moving it into the dropdown as a label fixes that. Tickets stays as an ordinary top-level link, shown only when there's a session (hidden rather than shown-and-left-to-404 for logged-out visitors, since it'll require auth once built).
 - **`backendFetch` (`lib/server/backend-client.ts`) turns a genuinely unreachable backend into a normal `503` Response**, not an uncaught rejection — `fetch()` itself rejects (not resolves with a 4xx/5xx) on connection-refused/DNS-failure, and nothing was catching that, so Next fell back to its own generic non-JSON `500` and `authClient.postAuth` crashed trying to `res.json()` it. Every caller (register/login route handlers, `refreshTokens`, the `/api/backend` proxy) now only ever handles a `Response` object. `refreshTokens` deliberately does *not* clear session cookies on this specific `503` — only on a real refresh rejection — so a transient outage can't silently log someone out of an otherwise-valid session.
 - **Toast notifications use `sonner`**, mounted in `Providers` and styled via its CSS-variable API (`--normal-*`/`--success-*`) mapped onto this app's own `@theme` tokens rather than sonner's built-in `richColors` palette — toasts read as part of this app, not a generic library default. Register fires a green/`accent-done`-bordered `toast.success()` right before its redirect (survives the navigation since `Toaster` lives at the layout level); login fires a neutral `toast()` ("Welcome back!") using the same dark styling as everything else, not the success color, since it's a greeting rather than a confirmation.

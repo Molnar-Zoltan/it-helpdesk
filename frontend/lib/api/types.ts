@@ -18,12 +18,17 @@ export interface UserProfile {
 }
 
 /** POST /auth/register body. acknowledgeWeakPassword is only sent on a
- * resubmit after the user confirms past a WEAK_PASSWORD_WARNING (422). */
+ * resubmit after the user confirms past a WEAK_PASSWORD_WARNING (422).
+ * turnstileToken is required — TurnstileGuard rejects a missing/invalid
+ * one before the request reaches RegisterDto validation at all. Tokens
+ * are single-use, so a fresh one is needed for every call, including the
+ * acknowledgeWeakPassword resubmit. */
 export interface RegisterPayload {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
+  turnstileToken: string;
   acknowledgeWeakPassword?: boolean;
 }
 

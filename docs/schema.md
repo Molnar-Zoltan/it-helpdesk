@@ -12,7 +12,6 @@ This document describes the Prisma schema for the IT Helpdesk application: model
 | `Ticket` | A support ticket filed by a customer, optionally assigned to an agent |
 | `Message` | A message thread entry on a ticket (human or AI-generated) |
 | `AiUsage` | Per-user, per-day counter for AI chat rate limiting |
-| `IpUsage` | Per-IP, per-action, per-time-window counter for rate limiting (e.g. login attempts) |
 | `RefreshToken` | Hashed refresh tokens issued to a user for session renewal |
 
 ## Entity-Relationship Diagram
@@ -68,14 +67,6 @@ erDiagram
         string id PK
         string userId FK
         date date
-        int count
-    }
-
-    IpUsage {
-        string id PK
-        string ipAddress
-        string action
-        datetime windowStart
         int count
     }
 
@@ -147,8 +138,7 @@ A single entry in a ticket's conversation. Can come from a customer, an agent, o
 ### `AiUsage`
 Tracks how many AI chat requests a user has made on a given calendar day, backing the "10 AI requests/day" rate limit. `@@unique([userId, date])` ensures one row per user per day; `count` is incremented on each request.
 
-### `IpUsage`
-Tracks rate-limited actions by IP address rather than by user — used for things like login-attempt throttling (5 attempts / 15 min) where the actor may not be authenticated yet. `@@unique([ipAddress, action, windowStart])` scopes the counter to a specific action type and time window.
+> **Removed: `IpUsage`.** Scaffolded early for Postgres-backed IP rate limiting, but Step 6 implemented login rate limiting via Redis instead (`RateLimitService`, `ratelimit:login:{emailHash}:{ipHash}` — see [architecture.md#rate-limiting](architecture.md#rate-limiting)), and nothing ever wrote to this table. Dropped in the `drop_ip_usage` migration rather than left as unused schema alongside a working Redis-based limiter.
 
 ### `RefreshToken`
 Issued on login/refresh to allow session renewal without re-authenticating. Only the **hash** of the token is stored (`tokenHash`), never the raw token. `revoked` allows explicit invalidation (e.g. on logout, password change, or email change) before `expiresAt` naturally elapses. `onDelete: Cascade` on the `user` relation — deleting an account hard-deletes its refresh tokens, since they're pure session data with no anonymization concern.

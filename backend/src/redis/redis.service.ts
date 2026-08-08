@@ -9,7 +9,7 @@ import { requireEnv } from '../auth/token.util';
 
 /**
  * Thin wrapper around a single ioredis client, shared by every consumer
- * (rate limiting today; AI daily-usage counters in Step 9). A plain TCP
+ * (rate limiting today; AI daily-usage counters in Step 10). A plain TCP
  * connection via ioredis rather than Upstash's REST client, so the same
  * connection code works unchanged against the local Docker Redis container
  * and Upstash in production — just a different REDIS_URL

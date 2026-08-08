@@ -19,7 +19,18 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
   expressApp.set('trust proxy', 1);
 
-  app.enableCors({ origin: process.env.FRONTEND_URL, credentials: true });
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    // The `cors` package treats an undefined `origin` as "allow any origin"
+    // (it falls into the same branch as an explicit '*'), not "reject" — so a
+    // dropped/misconfigured FRONTEND_URL would silently open CORS wide rather
+    // than failing. Fail fast at boot instead of degrading into a permissive
+    // default that's easy to miss in a Cloud Run env var mix-up.
+    throw new Error(
+      'FRONTEND_URL is not set — refusing to start with an unconfigured CORS origin.',
+    );
+  }
+  app.enableCors({ origin: frontendUrl, credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }

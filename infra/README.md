@@ -1,7 +1,41 @@
 # Infra config
 
-Config-as-code for infrastructure that lives outside the app itself — currently just the
-Artifact Registry cleanup policy for the backend's Docker images.
+Config-as-code for infrastructure that lives outside the app itself: the Artifact
+Registry cleanup policy for the backend's Docker images, and the Workload Identity
+Federation setup that lets `.github/workflows/backend-release.yml`'s `deploy-backend`
+job authenticate to GCP.
+
+## Workload Identity Federation
+
+`deploy-backend` needs to push images to Artifact Registry and deploy new Cloud Run
+revisions. Rather than a long-lived service account key sitting in a GitHub secret
+(the #1 way GCP credentials end up leaked — committed to a repo, pasted into a log),
+it authenticates via Workload Identity Federation: GitHub's own OIDC token is
+exchanged for short-lived GCP credentials, scoped to this repo's `main` branch only,
+with nothing stored or rotated.
+
+This is one-time setup, done once via `gcloud` (not re-run by CI), not currently
+captured as a `.tf`/`.json` file in this repo — the pool, provider, service account,
+and role bindings live directly in GCP IAM. In brief:
+
+- A Workload Identity **Pool** + **OIDC Provider** trusting
+  `https://token.actions.githubusercontent.com`, with an attribute condition
+  restricting admission to `assertion.repository == 'Molnar-Zoltan/it-helpdesk' &&
+  assertion.ref == 'refs/heads/main'` — so a token minted by a PR from a fork, or a
+  push to any other branch, can't authenticate even if it somehow reached this
+  workflow.
+- A dedicated service account, `github-actions-deployer`, holding only
+  `roles/artifactregistry.writer` and `roles/run.developer` on the project, plus
+  `roles/iam.serviceAccountUser` on the Cloud Run service's runtime identity (the
+  default compute service account) — not `roles/run.admin`, since deploys never need
+  to touch the Cloud Run service's own IAM policy (public invoker access was already
+  configured once, by hand, during the initial smoke-test deploy).
+- The pool bound to that service account via `roles/iam.workloadIdentityUser`.
+
+The resulting provider resource name, service account email, and GCP project ID are
+stored as GitHub repository secrets (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_SERVICE_ACCOUNT_EMAIL`, `GCP_PROJECT_ID`) — `deploy-backend` reads them from
+there, never from a file in this repo.
 
 ## Artifact Registry cleanup policy
 

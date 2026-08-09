@@ -20,13 +20,7 @@ import {
   TICKET_PRIORITIES,
   type CreateTicketFormValues,
 } from "@/lib/validation/ticket-schemas";
-
-const PRIORITY_LABELS: Record<(typeof TICKET_PRIORITIES)[number], string> = {
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
-  URGENT: "Urgent",
-};
+import { NEW_TICKET_TEXT, TICKET_PRIORITY_LABELS } from "@/lib/constants/text/tickets.text";
 
 const DEFAULT_VALUES: CreateTicketFormValues = {
   title: "",
@@ -91,11 +85,11 @@ export function NewTicketForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-      <FormField label="Title" error={errors.title?.message}>
+      <FormField label={NEW_TICKET_TEXT.TITLE_LABEL} error={errors.title?.message}>
         {(field) => (
           <Input
             {...field}
-            placeholder="Short summary of the issue"
+            placeholder={NEW_TICKET_TEXT.TITLE_PLACEHOLDER}
             hasError={Boolean(errors.title)}
             {...register("title")}
           />
@@ -103,31 +97,31 @@ export function NewTicketForm() {
       </FormField>
 
       <FormField
-        label="Description"
+        label={NEW_TICKET_TEXT.DESCRIPTION_LABEL}
         error={errors.description?.message}
         hint={
           errors.description
             ? undefined
-            : `${descriptionLength}/${TICKET_DESCRIPTION_MAX_LENGTH} characters`
+            : NEW_TICKET_TEXT.charactersHint(descriptionLength, TICKET_DESCRIPTION_MAX_LENGTH)
         }
       >
         {(field) => (
           <TextArea
             {...field}
             rows={8}
-            placeholder="What's happening? Include steps to reproduce, error messages, and when it started."
+            placeholder={NEW_TICKET_TEXT.DESCRIPTION_PLACEHOLDER}
             hasError={Boolean(errors.description)}
             {...register("description")}
           />
         )}
       </FormField>
 
-      <FormField label="Priority" error={errors.priority?.message}>
+      <FormField label={NEW_TICKET_TEXT.PRIORITY_LABEL} error={errors.priority?.message}>
         {(field) => (
           <Select {...field} hasError={Boolean(errors.priority)} {...register("priority")}>
             {TICKET_PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>
-                {PRIORITY_LABELS[priority]}
+                {TICKET_PRIORITY_LABELS[priority]}
               </option>
             ))}
           </Select>
@@ -136,8 +130,7 @@ export function NewTicketForm() {
 
       {isOnCooldown ? (
         <Alert tone="danger">
-          You&apos;re creating tickets too quickly. Try again in{" "}
-          {formatCountdown(cooldownRemaining)}.
+          {NEW_TICKET_TEXT.rateLimitedMessage(formatCountdown(cooldownRemaining))}
         </Alert>
       ) : (
         createTicketMutation.isError &&
@@ -152,7 +145,7 @@ export function NewTicketForm() {
           disabled={isOnCooldown}
           isLoading={createTicketMutation.isPending}
         >
-          Submit ticket
+          {NEW_TICKET_TEXT.SUBMIT}
         </Button>
 
         {/*
@@ -191,7 +184,7 @@ export function NewTicketForm() {
               : "cursor-pointer",
           )}
         >
-          Cancel
+          {NEW_TICKET_TEXT.CANCEL}
         </Link>
       </div>
     </form>

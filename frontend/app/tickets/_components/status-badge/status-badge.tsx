@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { BadgeTone } from "@/components/ui/badge";
+import { TICKET_STATUS_LABELS } from "@/lib/constants/text/tickets.text";
 import type { StatusBadgeProps } from "./status-badge.types";
 
 /**
@@ -9,13 +10,6 @@ import type { StatusBadgeProps } from "./status-badge.types";
  * "done" teal, and CLOSED fades to neutral gray once there's nothing left
  * to act on.
  */
-const STATUS_LABELS: Record<StatusBadgeProps["status"], string> = {
-  OPEN: "Open",
-  IN_PROGRESS: "In progress",
-  RESOLVED: "Resolved",
-  CLOSED: "Closed",
-};
-
 const STATUS_TONES: Record<StatusBadgeProps["status"], BadgeTone> = {
   OPEN: "danger",
   IN_PROGRESS: "active",
@@ -26,7 +20,7 @@ const STATUS_TONES: Record<StatusBadgeProps["status"], BadgeTone> = {
 export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <Badge tone={STATUS_TONES[status]} dot>
-      {STATUS_LABELS[status]}
+      {TICKET_STATUS_LABELS[status]}
     </Badge>
   );
 }

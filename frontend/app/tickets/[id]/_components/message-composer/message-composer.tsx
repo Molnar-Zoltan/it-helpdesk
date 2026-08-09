@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api/client";
 import { useCreateMessage } from "@/lib/mutations/use-create-message";
 import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { createMessageSchema, type CreateMessageFormValues } from "@/lib/validation/ticket-schemas";
+import { MESSAGE_COMPOSER_TEXT } from "@/lib/constants/text/tickets.text";
 import type { MessageComposerProps } from "./message-composer.types";
 
 const DEFAULT_VALUES: CreateMessageFormValues = { content: "" };
@@ -66,7 +67,7 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
   if (disabled) {
     return (
       <Alert tone="neutral">
-        This ticket is closed. Reopen it above to add a new message.
+        {MESSAGE_COMPOSER_TEXT.CLOSED_NOTICE}
       </Alert>
     );
   }
@@ -74,17 +75,17 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
       <FormField
-        label="Add a message"
+        label={MESSAGE_COMPOSER_TEXT.FIELD_LABEL}
         error={errors.content?.message}
         hint={
-          errors.content ? undefined : `${contentLength}/${TICKET_MESSAGE_CONTENT_MAX_LENGTH} characters`
+          errors.content ? undefined : MESSAGE_COMPOSER_TEXT.charactersHint(contentLength, TICKET_MESSAGE_CONTENT_MAX_LENGTH)
         }
       >
         {(field) => (
           <TextArea
             {...field}
             rows={3}
-            placeholder="Share an update or ask a question…"
+            placeholder={MESSAGE_COMPOSER_TEXT.PLACEHOLDER}
             hasError={Boolean(errors.content)}
             {...register("content")}
           />
@@ -93,8 +94,7 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
 
       {isOnCooldown ? (
         <Alert tone="danger">
-          You&apos;re sending messages too quickly. Try again in{" "}
-          {formatCountdown(cooldownRemaining)}.
+          {MESSAGE_COMPOSER_TEXT.rateLimitedMessage(formatCountdown(cooldownRemaining))}
         </Alert>
       ) : (
         createMessageMutation.isError &&
@@ -109,7 +109,7 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
         disabled={isOnCooldown}
         isLoading={createMessageMutation.isPending}
       >
-        Send message
+        {MESSAGE_COMPOSER_TEXT.SUBMIT}
       </Button>
     </form>
   );

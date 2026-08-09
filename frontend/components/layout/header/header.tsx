@@ -6,6 +6,7 @@ import { useProfile } from "@/lib/queries/use-profile";
 import { useLogout } from "@/lib/mutations/use-logout";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Spinner } from "@/components/ui/spinner";
+import { HEADER_TEXT } from "@/lib/constants/text/common.text";
 
 export function Header() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export function Header() {
           href="/"
           className="font-mono text-sm font-semibold tracking-wide text-text"
         >
-          IT Helpdesk
+          {HEADER_TEXT.LOGO}
         </Link>
 
         <nav className="flex items-center gap-6">
@@ -34,12 +35,12 @@ export function Header() {
               href="/tickets"
               className="text-sm text-text-secondary transition-colors hover:text-text"
             >
-              Tickets
+              {HEADER_TEXT.NAV_TICKETS}
             </Link>
           )}
 
           {isLoading ? (
-            <Spinner label="Loading account" />
+            <Spinner label={HEADER_TEXT.LOADING_ACCOUNT} />
           ) : profile ? (
             <UserMenu
               firstName={profile.firstName}
@@ -57,13 +58,13 @@ export function Header() {
                 href="/login"
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
-                Log in
+                {HEADER_TEXT.NAV_LOG_IN}
               </Link>
               <Link
                 href="/register"
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
-                Sign up
+                {HEADER_TEXT.NAV_SIGN_UP}
               </Link>
             </div>
           )}

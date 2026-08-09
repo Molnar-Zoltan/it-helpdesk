@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Analytics } from "@vercel/analytics/next"
+import { HOME_TEXT } from "@/lib/constants/text/common.text";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,9 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IT Helpdesk — Backend in progress",
-  description:
-    "An IT helpdesk platform being built vertically, backend first.",
+  title: HOME_TEXT.META_TITLE,
+  description: HOME_TEXT.META_DESCRIPTION,
 };
 
 export default function RootLayout({

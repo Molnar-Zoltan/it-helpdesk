@@ -17,6 +17,7 @@ import {
   type ChangePasswordFormValues,
 } from "@/lib/validation/account-schemas";
 import { DemoAccountNotice } from "../demo-account-notice";
+import { PASSWORD_TAB_TEXT } from "@/lib/constants/text/account.text";
 
 interface PasswordTabProps {
   isDemo: boolean;
@@ -58,10 +59,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
       });
       reset();
       setWeakPasswordWarning(false);
-      toast.success(
-        "Password updated. Your other sessions will be signed out the next time they try to refresh.",
-        { duration: 7000 },
-      );
+      toast.success(PASSWORD_TAB_TEXT.SUCCESS_TOAST, { duration: 7000 });
     } catch (error) {
       if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {
         setWeakPasswordWarning(true);
@@ -78,16 +76,15 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
   return (
     <form onSubmit={onValidSubmit} noValidate className="flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-semibold text-text">Password</h2>
+        <h2 className="text-lg font-semibold text-text">{PASSWORD_TAB_TEXT.HEADING}</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Changing your password signs out your other sessions the next
-          time they try to refresh — this device stays signed in.
+          {PASSWORD_TAB_TEXT.DESCRIPTION}
         </p>
       </div>
 
       {isDemo && <DemoAccountNotice />}
 
-      <FormField label="Current password" error={errors.currentPassword?.message}>
+      <FormField label={PASSWORD_TAB_TEXT.CURRENT_PASSWORD_LABEL} error={errors.currentPassword?.message}>
         {(field) => (
           <PasswordInput
             {...field}
@@ -107,7 +104,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
 
       <div className="flex flex-col gap-2">
         <FormField
-          label="New password"
+          label={PASSWORD_TAB_TEXT.NEW_PASSWORD_LABEL}
           error={errors.newPassword?.message}
           hideVisibleError={
             errors.newPassword?.message !== NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE
@@ -137,7 +134,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
       </div>
 
       <FormField
-        label="Confirm new password"
+        label={PASSWORD_TAB_TEXT.CONFIRM_NEW_PASSWORD_LABEL}
         error={errors.confirmNewPassword?.message}
       >
         {(field) => (
@@ -155,10 +152,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
 
       {weakPasswordWarning && (
         <Alert tone="danger">
-          <p>
-            This password has appeared in a known data breach. We recommend
-            choosing a different one.
-          </p>
+          <p>{PASSWORD_TAB_TEXT.WEAK_PASSWORD_WARNING}</p>
           <Button
             type="button"
             variant="secondary"
@@ -166,7 +160,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
             isLoading={changePasswordMutation.isPending}
             onClick={confirmWeakPassword}
           >
-            Use this password anyway
+            {PASSWORD_TAB_TEXT.USE_ANYWAY}
           </Button>
         </Alert>
       )}
@@ -181,7 +175,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
         isLoading={changePasswordMutation.isPending && !weakPasswordWarning}
         className="self-start"
       >
-        Update password
+        {PASSWORD_TAB_TEXT.SUBMIT}
       </Button>
     </form>
   );

@@ -1,20 +1,5 @@
 import { AuthStatusBanner } from "./_components/auth-status-banner";
-
-type Phase = {
-  label: string;
-  status: "done" | "active" | "planned";
-};
-
-const phases: Phase[] = [
-  { label: "Auth & sessions", status: "done" },
-  { label: "Account self-service", status: "done" },
-  { label: "Manual ticket creation", status: "done" },
-  { label: "Rate limiting", status: "done" },
-  { label: "Cloudflare Turnstile captcha", status: "done" },
-  { label: "CI/CD pipeline", status: "done" },
-  { label: "Agent dashboard", status: "planned" },
-  { label: "AI chat ticket path", status: "planned" },
-];
+import { HOME_TEXT, HOME_BUILD_PLAN_PHASES, type Phase } from "@/lib/constants/text/common.text";
 
 const statusStyles: Record<Phase["status"], string> = {
   done: "text-[#4FD1C5]",
@@ -37,32 +22,25 @@ export default function Home() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#F2A93B] opacity-75 motion-reduce:animate-none" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-[#F2A93B]" />
           </span>
-          System status
+          {HOME_TEXT.SYSTEM_STATUS_LABEL}
         </div>
 
         <h1 className="mt-6 text-3xl font-semibold leading-tight tracking-tight text-[#E7ECF1] sm:text-4xl">
-          Support tickets, filed by hand or by AI.
+          {HOME_TEXT.HEADING}
         </h1>
 
         <p className="mt-4 text-base leading-7 text-[#8A96A6]">
-          An IT helpdesk platform where tickets can be filed through a form
-          or a conversation with an AI assistant that extracts the details
-          automatically — both paths run through the same validation, so
-          the AI can never create a ticket the form wouldn&apos;t allow.
-          It&apos;s under active development: auth, account management,
-          manual ticket filing, rate limiting, and CAPTCHA-protected
-          registration are all live below, deploying automatically on every
-          push — the agent dashboard and AI chat path are being built next.
+          {HOME_TEXT.INTRO}
         </p>
 
         <AuthStatusBanner />
 
         <div className="mt-10 rounded-lg border border-[#212A35] bg-[#121821]">
           <div className="border-b border-[#212A35] px-5 py-3 font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.15em] text-[#4A5568]">
-            Build plan
+            {HOME_TEXT.BUILD_PLAN_LABEL}
           </div>
           <ul className="divide-y divide-[#212A35]">
-            {phases.map((phase) => (
+            {HOME_BUILD_PLAN_PHASES.map((phase) => (
               <li
                 key={phase.label}
                 className="flex items-center gap-3 px-5 py-3 font-[family-name:var(--font-geist-mono)] text-sm"
@@ -98,7 +76,7 @@ export default function Home() {
           rel="noopener noreferrer"
           className="mt-8 inline-flex items-center gap-1.5 text-sm text-[#8A96A6] underline decoration-[#212A35] underline-offset-4 transition-colors hover:text-[#E7ECF1] hover:decoration-[#F2A93B]"
         >
-          Follow progress on GitHub
+          {HOME_TEXT.GITHUB_CTA}
           <span aria-hidden>↗</span>
         </a>
       </main>

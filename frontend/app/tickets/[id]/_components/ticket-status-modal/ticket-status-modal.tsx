@@ -8,6 +8,7 @@ import { TextArea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
+import { TICKET_STATUS_MODAL_TEXT } from "@/lib/constants/text/tickets.text";
 import type { TicketStatusModalProps } from "./ticket-status-modal.types";
 
 /**
@@ -81,7 +82,7 @@ export function TicketStatusModal({
 
         <div className="mt-2 flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={closeModal} disabled={mutation.isPending}>
-            Cancel
+            {TICKET_STATUS_MODAL_TEXT.CANCEL}
           </Button>
           <Button type="submit" variant={confirmVariant} isLoading={mutation.isPending}>
             {confirmLabel}

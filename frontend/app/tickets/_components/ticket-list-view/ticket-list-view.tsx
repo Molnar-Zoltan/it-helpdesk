@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { useTickets } from "@/lib/queries/use-tickets";
 import { cn } from "@/lib/utils";
+import { TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
 import { TicketRow } from "../ticket-row";
 import { TicketPagination } from "../ticket-pagination";
 import { TicketSortControls } from "../ticket-sort-controls";
@@ -86,14 +87,14 @@ export function TicketListView() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-text">My tickets</h1>
+          <h1 className="text-2xl font-semibold text-text">{TICKET_LIST_TEXT.HEADING}</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Everything you&apos;ve filed, newest first by default.
+            {TICKET_LIST_TEXT.SUBHEADING}
           </p>
         </div>
 
         <Link href="/tickets/new" className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
-          New ticket
+          {TICKET_LIST_TEXT.NEW_TICKET_LINK}
         </Link>
       </div>
 
@@ -109,7 +110,7 @@ export function TicketListView() {
       <Card>
         {ticketsQuery.isLoading ? (
           <div className="flex justify-center py-16">
-            <Spinner label="Loading tickets" />
+            <Spinner label={TICKET_LIST_TEXT.LOADING} />
           </div>
         ) : ticketsQuery.isError ? (
           <Alert tone="danger">{ticketsQuery.error.message}</Alert>
@@ -117,12 +118,12 @@ export function TicketListView() {
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <p className="text-text-secondary">
               {page > DEFAULT_PAGE
-                ? "No tickets on this page."
-                : "You haven't filed any tickets yet."}
+                ? TICKET_LIST_TEXT.NO_RESULTS_ON_PAGE
+                : TICKET_LIST_TEXT.NO_TICKETS_YET}
             </p>
             {page === DEFAULT_PAGE && (
               <Link href="/tickets/new" className={LINK_BUTTON_CLASSES.secondary}>
-                File your first ticket
+                {TICKET_LIST_TEXT.FILE_FIRST_TICKET}
               </Link>
             )}
           </div>

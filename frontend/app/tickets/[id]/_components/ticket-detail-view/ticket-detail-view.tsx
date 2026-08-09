@@ -14,6 +14,11 @@ import { useReopenTicket } from "@/lib/mutations/use-reopen-ticket";
 import { closeTicketSchema, reopenTicketSchema } from "@/lib/validation/ticket-schemas";
 import { StatusBadge } from "@/app/tickets/_components/status-badge";
 import { PriorityBadge } from "@/app/tickets/_components/priority-badge";
+import {
+  TICKET_DETAIL_TEXT,
+  TICKET_CLOSE_MODAL_TEXT,
+  TICKET_REOPEN_MODAL_TEXT,
+} from "@/lib/constants/text/tickets.text";
 import { TicketStatusModal } from "../ticket-status-modal";
 import { MessageThread } from "../message-thread";
 import { MessageComposer } from "../message-composer";
@@ -30,7 +35,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   if (ticketQuery.isLoading) {
     return (
       <div className="flex justify-center py-16">
-        <Spinner label="Loading ticket" />
+        <Spinner label={TICKET_DETAIL_TEXT.LOADING} />
       </div>
     );
   }
@@ -44,13 +49,13 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
         <p className="text-text-secondary">
-          {isNotFound ? "That ticket doesn't exist, or isn't yours." : ticketQuery.error.message}
+          {isNotFound ? TICKET_DETAIL_TEXT.NOT_FOUND : ticketQuery.error.message}
         </p>
         <Link
           href="/tickets"
           className="text-sm font-medium text-accent-done hover:underline"
         >
-          Back to tickets
+          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE}
         </Link>
       </div>
     );
@@ -65,7 +70,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
     <div className="flex flex-col gap-6">
       <div>
         <Link href="/tickets" className="text-sm text-text-secondary hover:underline">
-          ← Back to tickets
+          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS}
         </Link>
       </div>
 
@@ -75,11 +80,11 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
 
           {isClosed ? (
             <Button variant="secondary" onClick={() => setOpenModal("reopen")}>
-              Reopen ticket
+              {TICKET_DETAIL_TEXT.REOPEN_BUTTON}
             </Button>
           ) : (
             <Button variant="danger" onClick={() => setOpenModal("close")}>
-              Close ticket
+              {TICKET_DETAIL_TEXT.CLOSE_BUTTON}
             </Button>
           )}
         </div>
@@ -88,7 +93,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
           <StatusBadge status={ticket.status} />
           <PriorityBadge priority={ticket.priority} />
           <span className="text-xs text-text-muted">
-            Filed {formatDate(ticket.createdAt)} · Updated {formatDate(ticket.updatedAt)}
+            {TICKET_DETAIL_TEXT.filedUpdated(formatDate(ticket.createdAt), formatDate(ticket.updatedAt))}
           </span>
         </div>
       </div>
@@ -104,19 +109,25 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
         <div className="flex flex-col gap-2">
           {ticket.closeReason && (
             <Alert tone="neutral">
-              Closed {ticket.closedAt && formatDate(ticket.closedAt)}: {ticket.closeReason}
+              {TICKET_DETAIL_TEXT.closedNote(
+                ticket.closedAt ? formatDate(ticket.closedAt) : "",
+                ticket.closeReason,
+              )}
             </Alert>
           )}
           {ticket.reopenReason && (
             <Alert tone="neutral">
-              Reopened {ticket.reopenedAt && formatDate(ticket.reopenedAt)}: {ticket.reopenReason}
+              {TICKET_DETAIL_TEXT.reopenedNote(
+                ticket.reopenedAt ? formatDate(ticket.reopenedAt) : "",
+                ticket.reopenReason,
+              )}
             </Alert>
           )}
         </div>
       )}
 
       <Card>
-        <h2 className="text-lg font-semibold text-text">Messages</h2>
+        <h2 className="text-lg font-semibold text-text">{TICKET_DETAIL_TEXT.MESSAGES_HEADING}</h2>
         <MessageThread ticketId={ticketId} />
         <div className="mt-4 border-t border-border pt-4">
           <MessageComposer ticketId={ticketId} disabled={isClosed} />
@@ -126,13 +137,13 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
       <TicketStatusModal
         open={openModal === "close"}
         onClose={() => setOpenModal(null)}
-        title="Close this ticket?"
-        description="Let us know why you're closing it. You can reopen it later if needed."
-        reasonLabel="Reason"
-        reasonPlaceholder="e.g. Resolved myself, no longer needed…"
-        confirmLabel="Close ticket"
+        title={TICKET_CLOSE_MODAL_TEXT.TITLE}
+        description={TICKET_CLOSE_MODAL_TEXT.DESCRIPTION}
+        reasonLabel={TICKET_CLOSE_MODAL_TEXT.REASON_LABEL}
+        reasonPlaceholder={TICKET_CLOSE_MODAL_TEXT.REASON_PLACEHOLDER}
+        confirmLabel={TICKET_CLOSE_MODAL_TEXT.CONFIRM_LABEL}
         confirmVariant="danger"
-        successToast="Ticket closed."
+        successToast={TICKET_CLOSE_MODAL_TEXT.SUCCESS_TOAST}
         schema={closeTicketSchema}
         mutation={closeTicketMutation}
       />
@@ -140,13 +151,13 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
       <TicketStatusModal
         open={openModal === "reopen"}
         onClose={() => setOpenModal(null)}
-        title="Reopen this ticket?"
-        description="Let us know why you're reopening it."
-        reasonLabel="Reason"
-        reasonPlaceholder="e.g. Issue came back, wasn't actually fixed…"
-        confirmLabel="Reopen ticket"
+        title={TICKET_REOPEN_MODAL_TEXT.TITLE}
+        description={TICKET_REOPEN_MODAL_TEXT.DESCRIPTION}
+        reasonLabel={TICKET_REOPEN_MODAL_TEXT.REASON_LABEL}
+        reasonPlaceholder={TICKET_REOPEN_MODAL_TEXT.REASON_PLACEHOLDER}
+        confirmLabel={TICKET_REOPEN_MODAL_TEXT.CONFIRM_LABEL}
         confirmVariant="primary"
-        successToast="Ticket reopened."
+        successToast={TICKET_REOPEN_MODAL_TEXT.SUCCESS_TOAST}
         schema={reopenTicketSchema}
         mutation={reopenTicketMutation}
       />

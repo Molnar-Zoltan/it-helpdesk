@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { MESSAGE_ITEM_TEXT } from "@/lib/constants/text/tickets.text";
 import type { MessageItemProps } from "./message-item.types";
 
 /** Date + time, unlike lib/utils.ts's formatDate (date-only, built for the
@@ -23,8 +24,8 @@ function formatMessageTimestamp(isoDate: string) {
  * rather than claiming to be the viewer.
  */
 function senderLabel(isOwnMessage: boolean, isAiGenerated: boolean) {
-  if (isAiGenerated) return "AI Assistant";
-  return isOwnMessage ? "You" : "Support";
+  if (isAiGenerated) return MESSAGE_ITEM_TEXT.AI_SENDER_LABEL;
+  return isOwnMessage ? MESSAGE_ITEM_TEXT.YOU_SENDER_LABEL : MESSAGE_ITEM_TEXT.SUPPORT_SENDER_LABEL;
 }
 
 export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
@@ -34,7 +35,7 @@ export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
         <span className="font-medium text-text-secondary">
           {senderLabel(isOwnMessage, message.isAiGenerated)}
         </span>
-        {message.isAiGenerated && <Badge tone="active">AI</Badge>}
+        {message.isAiGenerated && <Badge tone="active">{MESSAGE_ITEM_TEXT.AI_BADGE}</Badge>}
         <span>{formatMessageTimestamp(message.createdAt)}</span>
       </div>
 

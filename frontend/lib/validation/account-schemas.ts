@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PASSWORD_MAX_LENGTH } from "@helpdesk/shared";
 import { nameField, password, email } from "./auth-schemas";
+import { ACCOUNT_VALIDATION_TEXT, AUTH_VALIDATION_TEXT } from "@/lib/constants/text/validation.text";
 
 export const updateNameSchema = z.object({
   firstName: nameField("First name"),
@@ -14,14 +15,14 @@ export type UpdateNameFormValues = z.infer<typeof updateNameSchema>;
 // delete-account, since all three require currentPassword the same way.
 const currentPasswordField = z
   .string()
-  .min(1, "Current password is required")
-  .max(PASSWORD_MAX_LENGTH, `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer`);
+  .min(1, ACCOUNT_VALIDATION_TEXT.CURRENT_PASSWORD_REQUIRED)
+  .max(PASSWORD_MAX_LENGTH, AUTH_VALIDATION_TEXT.passwordMaxLength);
 
 // Exported so password-tab.tsx can tell this specific error apart from
 // the length/strength/emoji ones already represented in the checklist —
 // unlike those, this rule has no checklist item, so it must stay visible.
 export const NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE =
-  "New password must be different from your current password";
+  ACCOUNT_VALIDATION_TEXT.NEW_PASSWORD_SAME_AS_CURRENT;
 
 export const changePasswordSchema = z
   .object({
@@ -29,10 +30,10 @@ export const changePasswordSchema = z
     newPassword: password,
     // Client-only field — never sent to the backend, stripped before the
     // mutation is called.
-    confirmNewPassword: z.string().min(1, "Please confirm your new password"),
+    confirmNewPassword: z.string().min(1, ACCOUNT_VALIDATION_TEXT.CONFIRM_NEW_PASSWORD_REQUIRED),
   })
   .refine((data) => data.newPassword === data.confirmNewPassword, {
-    message: "Passwords don't match",
+    message: ACCOUNT_VALIDATION_TEXT.PASSWORDS_DONT_MATCH,
     path: ["confirmNewPassword"],
   })
   // Only catches an exact string match (unlike the backend, this can't

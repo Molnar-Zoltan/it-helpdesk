@@ -13,6 +13,7 @@ import { Alert } from "@/components/ui/alert";
 import { ApiError } from "@/lib/api/client";
 import { useLogin } from "@/lib/mutations/use-login";
 import { loginSchema, type LoginFormValues } from "@/lib/validation/auth-schemas";
+import { LOGIN_TEXT } from "@/lib/constants/text/auth.text";
 
 /** "125" -> "2:05". Only ever fed values under an hour (window is minutes). */
 function formatCountdown(totalSeconds: number): string {
@@ -108,7 +109,7 @@ export function LoginForm() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       await loginMutation.mutateAsync(values);
-      toast("Welcome back!");
+      toast(LOGIN_TEXT.WELCOME_BACK_TOAST);
       router.push(redirectTo);
     } catch {
       // Surfaced below via loginMutation.error — nothing else to do here.
@@ -117,7 +118,7 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-      <FormField label="Email" error={errors.email?.message}>
+      <FormField label={LOGIN_TEXT.EMAIL_LABEL} error={errors.email?.message}>
         {(field) => (
           <Input
             {...field}
@@ -129,7 +130,7 @@ export function LoginForm() {
         )}
       </FormField>
 
-      <FormField label="Password" error={errors.password?.message}>
+      <FormField label={LOGIN_TEXT.PASSWORD_LABEL} error={errors.password?.message}>
         {(field) => (
           <PasswordInput
             {...field}
@@ -142,8 +143,7 @@ export function LoginForm() {
 
       {isLockedOutForCurrentEmail ? (
         <Alert tone="danger">
-          Too many login attempts for this email. Try again in{" "}
-          {formatCountdown(lockout.remaining)}.
+          {LOGIN_TEXT.lockoutMessage(formatCountdown(lockout.remaining))}
         </Alert>
       ) : (
         loginMutation.isError &&
@@ -158,7 +158,7 @@ export function LoginForm() {
         isLoading={loginMutation.isPending}
         className="mt-1"
       >
-        Log in
+        {LOGIN_TEXT.SUBMIT}
       </Button>
     </form>
   );

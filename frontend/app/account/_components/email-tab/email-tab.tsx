@@ -15,6 +15,7 @@ import {
 } from "@/lib/validation/account-schemas";
 import type { UserProfile } from "@/lib/api/types";
 import { DemoAccountNotice } from "../demo-account-notice";
+import { EMAIL_TAB_TEXT } from "@/lib/constants/text/account.text";
 
 interface EmailTabProps {
   profile: UserProfile;
@@ -55,10 +56,7 @@ export function EmailTab({ profile, isDemo }: EmailTabProps) {
     try {
       await changeEmailMutation.mutateAsync(values);
       reset({ currentPassword: "", newEmail: values.newEmail });
-      toast.success(
-        "Email updated. Your other sessions will be signed out the next time they try to refresh.",
-        { duration: 7000 },
-      );
+      toast.success(EMAIL_TAB_TEXT.SUCCESS_TOAST, { duration: 7000 });
     } catch {
       // Surfaced below via changeEmailMutation.error (e.g. wrong password,
       // email already in use).
@@ -68,17 +66,15 @@ export function EmailTab({ profile, isDemo }: EmailTabProps) {
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-semibold text-text">Email</h2>
+        <h2 className="text-lg font-semibold text-text">{EMAIL_TAB_TEXT.HEADING}</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Used to log in and identify your account. Changing it signs out
-          your other sessions the next time they try to refresh — this
-          device stays signed in.
+          {EMAIL_TAB_TEXT.DESCRIPTION}
         </p>
       </div>
 
       {isDemo && <DemoAccountNotice />}
 
-      <FormField label="New email" error={errors.newEmail?.message}>
+      <FormField label={EMAIL_TAB_TEXT.NEW_EMAIL_LABEL} error={errors.newEmail?.message}>
         {(field) => (
           <Input
             {...field}
@@ -92,9 +88,9 @@ export function EmailTab({ profile, isDemo }: EmailTabProps) {
       </FormField>
 
       <FormField
-        label="Current password"
+        label={EMAIL_TAB_TEXT.CURRENT_PASSWORD_LABEL}
         error={errors.currentPassword?.message}
-        hint="Required to confirm this change."
+        hint={EMAIL_TAB_TEXT.CURRENT_PASSWORD_HINT}
       >
         {(field) => (
           <PasswordInput
@@ -117,7 +113,7 @@ export function EmailTab({ profile, isDemo }: EmailTabProps) {
         isLoading={changeEmailMutation.isPending}
         className="self-start"
       >
-        Update email
+        {EMAIL_TAB_TEXT.SUBMIT}
       </Button>
     </form>
   );

@@ -19,6 +19,7 @@ import {
 import { PasswordRequirements } from "@/components/ui/password-requirements";
 import { TurnstileWidget } from "../turnstile-widget";
 import type { TurnstileWidgetHandle } from "../turnstile-widget";
+import { REGISTER_TEXT } from "@/lib/constants/text/auth.text";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export function RegisterForm() {
         turnstileToken,
         ...(acknowledgeWeakPassword ? { acknowledgeWeakPassword: true } : {}),
       });
-      toast.success("Account created — welcome aboard!");
+      toast.success(REGISTER_TEXT.SUCCESS_TOAST);
       router.push(redirectTo);
     } catch (error) {
       // The token above was already spent by this attempt's TurnstileGuard
@@ -99,24 +100,24 @@ export function RegisterForm() {
   return (
     <form onSubmit={onValidSubmit} noValidate className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="First name" error={errors.firstName?.message}>
+        <FormField label={REGISTER_TEXT.FIRST_NAME_LABEL} error={errors.firstName?.message}>
           {(field) => (
             <Input
               {...field}
               autoComplete="given-name"
-              placeholder="John"
+              placeholder={REGISTER_TEXT.FIRST_NAME_PLACEHOLDER}
               hasError={Boolean(errors.firstName)}
               {...register("firstName")}
             />
           )}
         </FormField>
 
-        <FormField label="Last name" error={errors.lastName?.message}>
+        <FormField label={REGISTER_TEXT.LAST_NAME_LABEL} error={errors.lastName?.message}>
           {(field) => (
             <Input
               {...field}
               autoComplete="family-name"
-              placeholder="Doe"
+              placeholder={REGISTER_TEXT.LAST_NAME_PLACEHOLDER}
               hasError={Boolean(errors.lastName)}
               {...register("lastName")}
             />
@@ -124,13 +125,13 @@ export function RegisterForm() {
         </FormField>
       </div>
 
-      <FormField label="Email" error={errors.email?.message}>
+      <FormField label={REGISTER_TEXT.EMAIL_LABEL} error={errors.email?.message}>
         {(field) => (
           <Input
             {...field}
             type="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder={REGISTER_TEXT.EMAIL_PLACEHOLDER}
             hasError={Boolean(errors.email)}
             {...register("email")}
           />
@@ -139,7 +140,7 @@ export function RegisterForm() {
 
       <div className="flex flex-col gap-2">
         <FormField
-          label="Password"
+          label={REGISTER_TEXT.PASSWORD_LABEL}
           error={errors.password?.message}
           hideVisibleError
         >
@@ -170,7 +171,7 @@ export function RegisterForm() {
         <PasswordRequirements password={passwordValue} />
       </div>
 
-      <FormField label="Confirm password" error={errors.confirmPassword?.message}>
+      <FormField label={REGISTER_TEXT.CONFIRM_PASSWORD_LABEL} error={errors.confirmPassword?.message}>
         {(field) => (
           <PasswordInput
             {...field}
@@ -198,18 +199,14 @@ export function RegisterForm() {
         />
         {turnstileError && (
           <Alert tone="danger">
-            Captcha failed to load. Please disable any content blockers and
-            refresh the page.
+            {REGISTER_TEXT.CAPTCHA_ERROR}
           </Alert>
         )}
       </div>
 
       {weakPasswordWarning && (
         <Alert tone="danger">
-          <p>
-            This password has appeared in a known data breach. We recommend
-            choosing a different one.
-          </p>
+          <p>{REGISTER_TEXT.WEAK_PASSWORD_WARNING}</p>
           <Button
             type="button"
             variant="secondary"
@@ -218,7 +215,7 @@ export function RegisterForm() {
             disabled={!turnstileToken}
             onClick={confirmWeakPassword}
           >
-            Use this password anyway
+            {REGISTER_TEXT.USE_ANYWAY}
           </Button>
         </Alert>
       )}
@@ -233,7 +230,7 @@ export function RegisterForm() {
         disabled={!turnstileToken}
         className="mt-1"
       >
-        Create account
+        {REGISTER_TEXT.SUBMIT}
       </Button>
     </form>
   );

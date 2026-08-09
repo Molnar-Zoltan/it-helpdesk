@@ -13,6 +13,7 @@ import {
   containsEmoji,
 } from "@helpdesk/shared";
 import type { TicketPriority } from "@helpdesk/shared";
+import { TICKET_VALIDATION_TEXT } from "@/lib/constants/text/validation.text";
 
 /**
  * Wraps @helpdesk/shared's validation constants rather than hand-rolling
@@ -32,20 +33,14 @@ export const TICKET_PRIORITIES = [
 export const createTicketSchema = z.object({
   title: z
     .string()
-    .min(TICKET_TITLE_MIN_LENGTH, `Title must be at least ${TICKET_TITLE_MIN_LENGTH} characters`)
-    .max(TICKET_TITLE_MAX_LENGTH, `Title must be ${TICKET_TITLE_MAX_LENGTH} characters or fewer`)
-    .refine((value) => !containsEmoji(value), "Title can't contain emoji"),
+    .min(TICKET_TITLE_MIN_LENGTH, TICKET_VALIDATION_TEXT.titleMinLength)
+    .max(TICKET_TITLE_MAX_LENGTH, TICKET_VALIDATION_TEXT.titleMaxLength)
+    .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.TITLE_NO_EMOJI),
   description: z
     .string()
-    .min(
-      TICKET_DESCRIPTION_MIN_LENGTH,
-      `Description must be at least ${TICKET_DESCRIPTION_MIN_LENGTH} characters`,
-    )
-    .max(
-      TICKET_DESCRIPTION_MAX_LENGTH,
-      `Description must be ${TICKET_DESCRIPTION_MAX_LENGTH} characters or fewer`,
-    )
-    .refine((value) => !containsEmoji(value), "Description can't contain emoji"),
+    .min(TICKET_DESCRIPTION_MIN_LENGTH, TICKET_VALIDATION_TEXT.descriptionMinLength)
+    .max(TICKET_DESCRIPTION_MAX_LENGTH, TICKET_VALIDATION_TEXT.descriptionMaxLength)
+    .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.DESCRIPTION_NO_EMOJI),
   // Always required client-side (the Select always has a value, defaulted
   // to MEDIUM) even though the backend DTO treats priority as optional.
   priority: z.enum(TICKET_PRIORITIES),
@@ -62,41 +57,26 @@ export type CreateTicketFormValues = z.infer<typeof createTicketSchema>;
 export const closeTicketSchema = z.object({
   reason: z
     .string()
-    .min(
-      TICKET_CLOSE_REASON_MIN_LENGTH,
-      `Reason must be at least ${TICKET_CLOSE_REASON_MIN_LENGTH} characters`,
-    )
-    .max(TICKET_CLOSE_REASON_MAX_LENGTH, `Reason must be ${TICKET_CLOSE_REASON_MAX_LENGTH} characters or fewer`)
-    .refine((value) => !containsEmoji(value), "Reason can't contain emoji"),
+    .min(TICKET_CLOSE_REASON_MIN_LENGTH, TICKET_VALIDATION_TEXT.closeReasonMinLength)
+    .max(TICKET_CLOSE_REASON_MAX_LENGTH, TICKET_VALIDATION_TEXT.closeReasonMaxLength)
+    .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.REASON_NO_EMOJI),
 });
 export type CloseTicketFormValues = z.infer<typeof closeTicketSchema>;
 
 export const reopenTicketSchema = z.object({
   reason: z
     .string()
-    .min(
-      TICKET_REOPEN_REASON_MIN_LENGTH,
-      `Reason must be at least ${TICKET_REOPEN_REASON_MIN_LENGTH} characters`,
-    )
-    .max(
-      TICKET_REOPEN_REASON_MAX_LENGTH,
-      `Reason must be ${TICKET_REOPEN_REASON_MAX_LENGTH} characters or fewer`,
-    )
-    .refine((value) => !containsEmoji(value), "Reason can't contain emoji"),
+    .min(TICKET_REOPEN_REASON_MIN_LENGTH, TICKET_VALIDATION_TEXT.reopenReasonMinLength)
+    .max(TICKET_REOPEN_REASON_MAX_LENGTH, TICKET_VALIDATION_TEXT.reopenReasonMaxLength)
+    .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.REASON_NO_EMOJI),
 });
 export type ReopenTicketFormValues = z.infer<typeof reopenTicketSchema>;
 
 export const createMessageSchema = z.object({
   content: z
     .string()
-    .min(
-      TICKET_MESSAGE_CONTENT_MIN_LENGTH,
-      `Message can't be empty`,
-    )
-    .max(
-      TICKET_MESSAGE_CONTENT_MAX_LENGTH,
-      `Message must be ${TICKET_MESSAGE_CONTENT_MAX_LENGTH} characters or fewer`,
-    )
-    .refine((value) => !containsEmoji(value), "Message can't contain emoji"),
+    .min(TICKET_MESSAGE_CONTENT_MIN_LENGTH, TICKET_VALIDATION_TEXT.MESSAGE_EMPTY)
+    .max(TICKET_MESSAGE_CONTENT_MAX_LENGTH, TICKET_VALIDATION_TEXT.messageMaxLength)
+    .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.MESSAGE_NO_EMOJI),
 });
 export type CreateMessageFormValues = z.infer<typeof createMessageSchema>;

@@ -1,10 +1,10 @@
 import { Alert } from "@/components/ui/alert";
+import { DEMO_ACCOUNT_NOTICE_TEXT } from "@/lib/constants/text/account.text";
 
 export function DemoAccountNotice() {
   return (
     <Alert tone="neutral">
-      This is a shared demo account, so changes here are disabled. Feel free
-      to look around — just nothing will save.
+      {DEMO_ACCOUNT_NOTICE_TEXT.MESSAGE}
     </Alert>
   );
 }

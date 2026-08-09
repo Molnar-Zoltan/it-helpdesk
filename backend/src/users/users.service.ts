@@ -13,6 +13,7 @@ import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
+import { SessionRevocationService } from '../common/services/session-revocation.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 import { USERS_ERRORS } from '../common/constants/error-messages.constants';
 import { USERS_SUCCESS } from '../common/constants/success-messages.constants';
@@ -23,7 +24,32 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private pwnedPasswords: PwnedPasswordService,
+    private sessionRevocation: SessionRevocationService,
   ) {}
+
+  /**
+   * Finds the ids of a user's currently-active refresh tokens (optionally
+   * excluding one, e.g. the session making the request) so callers can
+   * revoke them live in Redis right after the DB transaction that flips
+   * their `revoked` flag commits. Kept as a single helper since
+   * changePassword/changeEmail/deleteAccount all need the same "which
+   * sessions am I about to cut off" lookup, just with slightly different
+   * scoping.
+   */
+  private async findActiveRefreshTokenIds(
+    userId: string,
+    excludeId?: string,
+  ): Promise<string[]> {
+    const rows = await this.prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revoked: false,
+        ...(excludeId && { id: { not: excludeId } }),
+      },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -103,6 +129,14 @@ export class UsersService {
 
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
 
+    // Captured before the transaction: updateMany doesn't return the rows
+    // it touched, and we need the ids afterward to also revoke them live
+    // in Redis (see SessionRevocationService).
+    const idsToRevoke = await this.findActiveRefreshTokenIds(
+      userId,
+      currentRefreshTokenId,
+    );
+
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
@@ -117,6 +151,10 @@ export class UsersService {
         data: { revoked: true },
       }),
     ]);
+
+    // Best-effort, after the DB commit — see SessionRevocationService for
+    // why a Redis failure here doesn't roll back or fail this request.
+    await this.sessionRevocation.revokeMany(idsToRevoke);
 
     return { message: USERS_SUCCESS.PASSWORD_UPDATED };
   }
@@ -149,6 +187,11 @@ export class UsersService {
     if (existing)
       throw new ConflictException(USERS_ERRORS.EMAIL_ALREADY_IN_USE);
 
+    const idsToRevoke = await this.findActiveRefreshTokenIds(
+      userId,
+      currentRefreshTokenId,
+    );
+
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
@@ -164,6 +207,8 @@ export class UsersService {
       }),
     ]);
 
+    await this.sessionRevocation.revokeMany(idsToRevoke);
+
     return { message: USERS_SUCCESS.EMAIL_UPDATED };
   }
 
@@ -176,6 +221,13 @@ export class UsersService {
     if (!valid)
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
 
+    // Unlike changePassword/changeEmail, there's no session to exempt —
+    // the account itself is going away, so every session (including the
+    // one making this request) needs to stop working immediately.
+    // Captured before the transaction since the cascade delete below
+    // removes these rows outright, not just flips a flag on them.
+    const idsToRevoke = await this.findActiveRefreshTokenIds(userId);
+
     await this.prisma.$transaction([
       // Anonymize this user's messages before the FK is nulled
       this.prisma.message.updateMany({
@@ -186,6 +238,8 @@ export class UsersService {
       // Ticket.customerId / Ticket.agentId / Message.senderId set null via onDelete: SetNull
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
+
+    await this.sessionRevocation.revokeMany(idsToRevoke);
 
     return { message: USERS_SUCCESS.ACCOUNT_DELETED };
   }

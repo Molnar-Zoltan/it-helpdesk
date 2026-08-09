@@ -137,6 +137,13 @@ export class AuthService {
       where: { id: stored.id },
       data: { revoked: true },
     });
+    // The old access token paired with this refresh token is usually near
+    // its own expiry already (that's typically why refresh was called),
+    // but rotation can also be triggered early (e.g. proactively by the
+    // frontend proxy) — so still close the same live-revocation gap as
+    // logout/password-change/account-deletion rather than leaving a
+    // narrower but still-real window.
+    await this.sessionRevocation.revoke(stored.id);
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: payload.sub },

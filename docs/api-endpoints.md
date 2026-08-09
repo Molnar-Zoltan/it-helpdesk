@@ -194,7 +194,7 @@ Lists the authenticated user's own tickets, paginated and sortable.
 | Param | Default | Notes |
 |---|---|---|
 | `page` | `1` | 1-indexed |
-| `limit` | `20` | capped at `100` |
+| `limit` | `10` | capped at `100` |
 | `sortBy` | `createdAt` | one of `createdAt`, `updatedAt`, `priority`, `status` |
 | `sortOrder` | `desc` | `asc` or `desc` |
 
@@ -203,7 +203,7 @@ Lists the authenticated user's own tickets, paginated and sortable.
 {
   "data": [ /* array of Ticket objects, same shape as POST /tickets response */ ],
   "page": 1,
-  "limit": 20,
+  "limit": 10,
   "total": 9,
   "totalPages": 1
 }

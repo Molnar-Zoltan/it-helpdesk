@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
+  DEFAULT_LIMIT,
   DEFAULT_PAGE,
   DEFAULT_SORT_ORDER,
   DEFAULT_TICKET_SORT_BY,
@@ -64,7 +65,11 @@ export function TicketListView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { page, sortBy, sortOrder } = readQueryParams(searchParams);
-  const limit = 20;
+  // Not currently exposed as a user-facing control (no page-size picker),
+  // so this stays a plain constant rather than a URL param like page/sortBy
+  // -- but it's pinned to the shared default so it can't drift from what
+  // the backend DTO falls back to when a request omits `limit` entirely.
+  const limit = DEFAULT_LIMIT;
 
   const updateParams = (updates: Record<string, string>, resetPage = false) => {
     const params = new URLSearchParams(searchParams);

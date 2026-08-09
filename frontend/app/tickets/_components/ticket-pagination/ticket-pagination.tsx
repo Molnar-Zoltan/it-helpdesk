@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import type { TicketPaginationProps } from "./ticket-pagination.types";
 
 /**
- * Plain Prev/Next -- no page-number buttons. With DEFAULT_LIMIT=20/page
+ * Plain Prev/Next -- no page-number buttons. With DEFAULT_LIMIT=10/page
  * and a portfolio-scale demo dataset, a numbered page strip would be
  * more chrome than it's worth; revisit if a real deployment's ticket
  * volume ever makes jumping more than one page at a time matter.

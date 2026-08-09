@@ -17,6 +17,15 @@ name: Release
 # expect; the accepted tradeoff is a brief window where the outgoing revision keeps
 # serving traffic against the already-migrated schema, judged acceptable for a
 # solo project with no concurrent-user risk.
+#
+# Immediately after a real release, "sync-develop" fast-forwards develop to
+# match main — main only ever gains new commits via a develop merge plus this
+# workflow's own chore(release) commit, so develop is always an ancestor of
+# main and --ff-only is safe by construction. This exists because the release
+# job pushes chore(release) straight to main and nothing else brings that
+# commit (or CHANGELOG.md/package.json's version bump) back to develop on its
+# own — without this, develop silently drifts one release-commit behind main
+# every single release.
 
 on:
   push:
@@ -154,6 +163,34 @@ jobs:
           git tag "$NEXT_VERSION"
           git push origin HEAD:main
           git push origin "$NEXT_VERSION"
+
+  sync-develop:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Fast-forward develop to main
+        # --ff-only, deliberately not a real merge or --force push: develop is
+        # only ever behind main by exactly the chore(release) commit this
+        # workflow just made (main gains commits solely via a develop merge
+        # plus that one commit), so a fast-forward should always be possible.
+        # If it isn't — e.g. something landed on develop after this workflow's
+        # own checkout — fail loudly here rather than silently overwriting or
+        # merge-committing over whatever's actually on develop.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git merge --ff-only origin/main
+          git push origin develop
 
   changes:
     # Cheap path check, run in parallel with `release` rather than after it —

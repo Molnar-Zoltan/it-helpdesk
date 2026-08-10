@@ -197,6 +197,17 @@ export class TicketsService {
       throw new ForbiddenException(TICKETS_ERRORS.TICKET_ALREADY_ASSIGNED);
     }
 
+    // Already assigned to this exact agent — nothing to change. Return as-is
+    // rather than issuing a redundant UPDATE: Prisma's @updatedAt fires on
+    // any write regardless of whether a field's value actually changed, so
+    // skipping this avoids letting repeated self-assign calls bump the
+    // ticket's updatedAt and quietly climb the queue's default sort order.
+    // Skipped before the target-agent lookup below too, since there's
+    // nothing left to validate when nothing is changing.
+    if (ticket.agentId === targetAgentId) {
+      return ticket;
+    }
+
     const targetAgent = await this.prisma.user.findUnique({
       where: { id: targetAgentId },
     });

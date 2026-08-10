@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.8.0] - 2026-08-10
+
+### Bug Fixes
+
+- **tickets:** Reduce default page size from 20 to 10
+- **auth:** Revoke logout's session live, not just at next refresh
+- **users:** Revoke sessions live on password/email change and delete
+- **auth:** Revoke old session live on refresh rotation too
+
+### CI/CD
+
+- **release:** Sync develop with main after every release
+
+### Documentation
+
+- **roadmap:** Add CI/CD pipeline as Step 8, renumber Agent dashboard and AI chat to 9/10
+- **homepage:** Reflect rate limiting, Turnstile, and CI/CD as shipped
+- **changelog:** Backfill 0.7.0 release history
+- **readme:** Swap email notifications for unit/integration tests in roadmap
+
+### Features
+
+- **auth:** Add Redis-backed live session revocation service
+- **auth:** Reject access tokens revoked mid-lifetime
+
+### Refactor
+
+- **frontend:** Centralize UI text into lib/constants/text
+- Centralize non-text constants shared/duplicated across app
+
 ## [0.7.1] - 2026-08-08
 
 ### Bug Fixes

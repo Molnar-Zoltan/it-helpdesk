@@ -1,4 +1,4 @@
-# AI Helpdesk Platform
+# IT Helpdesk Platform
 
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 

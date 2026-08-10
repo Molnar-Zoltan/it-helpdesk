@@ -1,0 +1,46 @@
+name: Demo Reset
+
+# Step 8.5: keeps the public live demo presentable by periodically wiping
+# and re-seeding all data. Demo accounts aren't blocked from creating,
+# closing, reopening, or messaging tickets (only the four /users/me
+# self-service mutations are, via isDemoUserId() — see
+# docs/api-endpoints.md#demo-account-protection), so ticket/message data
+# and any real signups accumulate on the live demo over time without this.
+#
+# Auth is a shared secret header, not a login — see
+# backend/src/admin/guards/demo-reset.guard.ts for why this deliberately
+# isn't JWT/role-based (even the demo ADMIN account's own session grants no
+# access to this endpoint).
+#
+# NOTE on the cron schedule: cron has no native "every 48 hours" primitive.
+# Day-of-month `*/2` runs on every odd day of the month at the given time,
+# which is a ~48h cadence most of the time but can compress to ~24h or
+# stretch to ~72h across a month boundary (e.g. the 31st is followed by the
+# 1st, both odd). Accepted as-is — exact interval precision doesn't matter
+# for a portfolio demo, and GitHub's own scheduled-workflow delivery isn't
+# guaranteed to the minute regardless.
+
+on:
+  schedule:
+    - cron: "0 3 */2 * *" # ~every 48 hours, 03:00 UTC
+  workflow_dispatch: {} # manual trigger, for testing outside the schedule
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call POST /admin/demo-reset
+        run: |
+          set -euo pipefail
+
+          status=$(curl -sS -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.BACKEND_URL }}/admin/demo-reset" \
+            -H "x-admin-reset-secret: ${{ secrets.ADMIN_RESET_SECRET }}")
+
+          echo "HTTP $status"
+          cat /tmp/response.json
+
+          if [ "$status" -ge 300 ]; then
+            echo "demo-reset failed with HTTP $status"
+            exit 1
+          fi

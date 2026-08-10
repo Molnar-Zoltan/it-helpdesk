@@ -121,13 +121,29 @@ export class TicketsService {
     };
   }
 
-  async findOneForUser(id: string, customerId: string) {
+  /**
+   * Visibility: the owning customer, or any AGENT/ADMIN — same rule as
+   * assertCanAccessMessages, and the same baseline findQueue uses. Agents
+   * could already list tickets (queue) and act on them (assign, status),
+   * but this endpoint was still customer-only until now, which meant an
+   * agent could see a ticket in the queue yet not open its detail page.
+   * Narrowing this to "assigned agent (or unassigned) + ADMIN" is Step
+   * 9.4, alongside the same narrowing for messages.
+   */
+  async findOneForUser(
+    id: string,
+    callerId: string,
+    role: Role,
+  ): Promise<Ticket> {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+
+    const isOwningCustomer = ticket?.customerId === callerId;
+    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
 
     // Same exception, same message for "doesn't exist" and "not yours" —
     // a 403 or a differently-worded 404 would leak whether the ticket ID
     // exists at all.
-    if (!ticket || ticket.customerId !== customerId) {
+    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
       throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
     }
 

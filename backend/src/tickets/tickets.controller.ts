@@ -57,7 +57,11 @@ export class TicketsController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.ticketsService.findOneForUser(id, req.user.userId);
+    return this.ticketsService.findOneForUser(
+      id,
+      req.user.userId,
+      req.user.role as Role,
+    );
   }
 
   @Patch(':id/close')

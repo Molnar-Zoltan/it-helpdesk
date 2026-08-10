@@ -70,7 +70,7 @@ See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-f
 | Login (Step 6, done) | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` | Failed attempts only — `AuthService.login` resets the counter on success, so an early typo doesn't cost the rest of the window once the password's right |
 | Ticket creation (Step 6, done) | 1 per 60 sec | `ratelimit:ticket-create:{userId}` | Every attempt, regardless of outcome |
 | Ticket messages (Step 6, done) | 1 per 10 sec, per ticket | `ratelimit:ticket-message:{userId}:{ticketId}` | Every attempt, regardless of outcome |
-| AI chat (Step 10) | 10 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
+| AI chat (Step 10) | 25 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
 | Registration (Step 7, done) | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter | — |
 
 Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit. `LoginRateLimitGuard` only *checks* the limit (via `RateLimitService.isLimited`) before the request reaches `AuthService`; it's `AuthService.login` that calls `increment`/`reset` once it actually knows whether the attempt succeeded, since a guard's `canActivate` runs before the route handler and has no visibility into that outcome.

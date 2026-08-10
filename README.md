@@ -127,7 +127,7 @@ Each app owns its own env file — see [`backend/.env.example`](backend/.env.exa
 |---|---|
 | `DATABASE_URL` | Postgres connection string, used by Prisma's `datasource` config and driver adapter |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Signing secrets for access and refresh tokens |
-| `AI_DAILY_LIMIT` | Max AI chat messages per user per day (default: 10) |
+| `AI_DAILY_LIMIT` | Max AI chat messages per user per day (default: 25) |
 | `GEMINI_API_KEY` | Gemini API key for AI ticket extraction |
 | `REDIS_URL` | Redis connection string — `redis://localhost:6379` locally, `rediss://default:<password>@<host>:6379` on Upstash |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | Failed login attempts before lockout (default: 5) |
@@ -206,7 +206,7 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
 10. ⬜ AI chat ticket path
     - 10.1 Backend — Gemini tool-calling into `TicketsService.create()`
     - 10.2 Frontend — chat UI
-    - 10.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 10/day/user)
+    - 10.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 25/day/user)
 
 Also on the list, not yet slotted into a numbered step:
 

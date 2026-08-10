@@ -1,3 +1,4 @@
+import { API_ERROR_CODES } from '@helpdesk/shared';
 import { RateLimitedException } from '../../common/exceptions/rate-limited.exception';
 
 /**
@@ -7,7 +8,7 @@ import { RateLimitedException } from '../../common/exceptions/rate-limited.excep
 export class TicketCreateRateLimitedException extends RateLimitedException {
   constructor(retryAfterSeconds: number) {
     super(
-      'TICKET_CREATE_RATE_LIMITED',
+      API_ERROR_CODES.TICKET_CREATE_RATE_LIMITED,
       'You are creating tickets too quickly. Please wait before submitting another.',
       retryAfterSeconds,
     );

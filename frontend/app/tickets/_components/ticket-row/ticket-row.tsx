@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { StatusBadge } from "../status-badge";
 import { PriorityBadge } from "../priority-badge";
 import type { TicketRowProps } from "./ticket-row.types";
@@ -7,7 +8,7 @@ import type { TicketRowProps } from "./ticket-row.types";
 export function TicketRow({ ticket }: TicketRowProps) {
   return (
     <Link
-      href={`/tickets/${ticket.id}`}
+      href={ROUTES.ticketDetail(ticket.id)}
       className="flex flex-col gap-2 border-b border-border px-4 py-4 transition-colors last:border-b-0 hover:bg-surface-raised"
     >
       <div className="flex items-start justify-between gap-4">

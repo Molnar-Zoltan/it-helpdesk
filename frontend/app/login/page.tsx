@@ -1,13 +1,23 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { DEMO_USERS, DEMO_PASSWORD } from "@helpdesk/shared";
 import { Card } from "@/components/ui/card";
 import { LoginForm } from "./_components/login-form";
 import { LOGIN_TEXT } from "@/lib/constants/text/auth.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export const metadata: Metadata = {
   title: LOGIN_TEXT.META_TITLE,
 };
+
+// The customer account is the one worth pointing a first-time visitor at
+// — it's the role this app's ticket-filing flow is actually built for
+// (see docs/api-endpoints.md's ticket access rules). Pulled from
+// @helpdesk/shared's DEMO_USERS/DEMO_PASSWORD (the same fixture seed.ts
+// inserts from) rather than hardcoded here, so this hint can't drift from
+// what the seed data actually creates.
+const demoCustomer = DEMO_USERS.find((user) => user.role === "CUSTOMER")!;
 
 export default function LoginPage() {
   return (
@@ -27,14 +37,14 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-text-secondary">
         {LOGIN_TEXT.NO_ACCOUNT_PROMPT}{" "}
-        <Link href="/register" className="text-accent-done hover:underline">
+        <Link href={ROUTES.REGISTER} className="text-accent-done hover:underline">
           {LOGIN_TEXT.CREATE_ONE_LINK}
         </Link>
       </p>
 
       <p className="text-center text-xs text-text-muted">
-        {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>customer@helpdesk.dev</code> /{" "}
-        <code>password123</code>.
+        {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>{demoCustomer.email}</code> /{" "}
+        <code>{DEMO_PASSWORD}</code>.
       </p>
     </div>
   );

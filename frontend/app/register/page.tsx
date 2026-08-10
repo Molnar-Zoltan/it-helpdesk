@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Card } from "@/components/ui/card";
 import { RegisterForm } from "./_components/register-form";
 import { REGISTER_TEXT } from "@/lib/constants/text/auth.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export const metadata: Metadata = {
   title: REGISTER_TEXT.META_TITLE,
@@ -27,7 +28,7 @@ export default function RegisterPage() {
 
       <p className="text-center text-sm text-text-secondary">
         {REGISTER_TEXT.HAVE_ACCOUNT_PROMPT}{" "}
-        <Link href="/login" className="text-accent-done hover:underline">
+        <Link href={ROUTES.LOGIN} className="text-accent-done hover:underline">
           {REGISTER_TEXT.LOG_IN_LINK}
         </Link>
       </p>

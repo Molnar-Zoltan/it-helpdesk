@@ -12,6 +12,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { useRegister } from "@/lib/mutations/use-register";
 import { ApiError } from "@/lib/api/client";
+import { API_ERROR_CODES } from "@helpdesk/shared";
 import {
   registerSchema,
   type RegisterFormValues,
@@ -20,11 +21,12 @@ import { PasswordRequirements } from "@/components/ui/password-requirements";
 import { TurnstileWidget } from "../turnstile-widget";
 import type { TurnstileWidgetHandle } from "../turnstile-widget";
 import { REGISTER_TEXT } from "@/lib/constants/text/auth.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/";
+  const redirectTo = searchParams.get("redirectTo") ?? ROUTES.HOME;
 
   const registerMutation = useRegister();
 
@@ -86,7 +88,7 @@ export function RegisterForm() {
       turnstileRef.current?.reset();
       setTurnstileToken(null);
 
-      if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {
+      if (error instanceof ApiError && error.code === API_ERROR_CODES.WEAK_PASSWORD_WARNING) {
         setWeakPasswordWarning(true);
         return;
       }

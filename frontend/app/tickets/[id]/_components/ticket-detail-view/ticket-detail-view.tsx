@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
 import { formatDate } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { useTicket } from "@/lib/queries/use-ticket";
 import { useCloseTicket } from "@/lib/mutations/use-close-ticket";
 import { useReopenTicket } from "@/lib/mutations/use-reopen-ticket";
@@ -52,7 +53,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
           {isNotFound ? TICKET_DETAIL_TEXT.NOT_FOUND : ticketQuery.error.message}
         </p>
         <Link
-          href="/tickets"
+          href={ROUTES.TICKETS}
           className="text-sm font-medium text-accent-done hover:underline"
         >
           {TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE}
@@ -69,7 +70,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/tickets" className="text-sm text-text-secondary hover:underline">
+        <Link href={ROUTES.TICKETS} className="text-sm text-text-secondary hover:underline">
           {TICKET_DETAIL_TEXT.BACK_TO_TICKETS}
         </Link>
       </div>

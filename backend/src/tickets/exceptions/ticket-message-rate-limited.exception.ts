@@ -1,3 +1,4 @@
+import { API_ERROR_CODES } from '@helpdesk/shared';
 import { RateLimitedException } from '../../common/exceptions/rate-limited.exception';
 
 /**
@@ -9,7 +10,7 @@ import { RateLimitedException } from '../../common/exceptions/rate-limited.excep
 export class TicketMessageRateLimitedException extends RateLimitedException {
   constructor(retryAfterSeconds: number) {
     super(
-      'TICKET_MESSAGE_RATE_LIMITED',
+      API_ERROR_CODES.TICKET_MESSAGE_RATE_LIMITED,
       'You are sending messages too quickly. Please wait a moment before sending another.',
       retryAfterSeconds,
     );

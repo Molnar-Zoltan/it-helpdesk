@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TICKET_DESCRIPTION_MAX_LENGTH } from "@helpdesk/shared";
+import { TICKET_DESCRIPTION_MAX_LENGTH, API_ERROR_CODES } from "@helpdesk/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ import { ApiError } from "@/lib/api/client";
 import { useCreateTicket } from "@/lib/mutations/use-create-ticket";
 import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import {
   createTicketSchema,
   TICKET_PRIORITIES,
@@ -52,7 +53,7 @@ export function NewTicketForm() {
   const cooldownRemaining = useRateLimitCountdown(
     createTicketMutation.isError,
     createTicketMutation.error,
-    "TICKET_CREATE_RATE_LIMITED",
+    API_ERROR_CODES.TICKET_CREATE_RATE_LIMITED,
   );
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
 
@@ -65,7 +66,7 @@ export function NewTicketForm() {
   const isRateLimitError =
     createTicketMutation.isError &&
     createTicketMutation.error instanceof ApiError &&
-    createTicketMutation.error.code === "TICKET_CREATE_RATE_LIMITED";
+    createTicketMutation.error.code === API_ERROR_CODES.TICKET_CREATE_RATE_LIMITED;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -77,7 +78,7 @@ export function NewTicketForm() {
       // register/login's post-auth redirect. "Create another" is still
       // one click away via /tickets/new in the header/list, so nothing
       // from that flow is lost.
-      router.push(`/tickets/${ticket.id}`);
+      router.push(ROUTES.ticketDetail(ticket.id));
     } catch {
       // Surfaced below via createTicketMutation.error.
     }
@@ -169,7 +170,7 @@ export function NewTicketForm() {
           instead of the native disabled attribute an <a> can't have.
         */}
         <Link
-          href="/tickets"
+          href={ROUTES.TICKETS}
           aria-disabled={createTicketMutation.isPending}
           tabIndex={createTicketMutation.isPending ? -1 : undefined}
           onClick={(event) => {

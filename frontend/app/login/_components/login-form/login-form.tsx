@@ -11,9 +11,11 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { ApiError } from "@/lib/api/client";
+import { API_ERROR_CODES } from "@helpdesk/shared";
 import { useLogin } from "@/lib/mutations/use-login";
 import { loginSchema, type LoginFormValues } from "@/lib/validation/auth-schemas";
 import { LOGIN_TEXT } from "@/lib/constants/text/auth.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 /** "125" -> "2:05". Only ever fed values under an hour (window is minutes). */
 function formatCountdown(totalSeconds: number): string {
@@ -28,7 +30,7 @@ export function LoginForm() {
   // Set by proxy.ts when it redirects an unauthenticated visitor away from a
   // protected route (none exist yet — see PROTECTED_ROUTE_PREFIXES). Falls
   // back to home, per the Step 5.3 decision to land there post-login.
-  const redirectTo = searchParams.get("redirectTo") ?? "/";
+  const redirectTo = searchParams.get("redirectTo") ?? ROUTES.HOME;
 
   const loginMutation = useLogin();
 
@@ -54,7 +56,7 @@ export function LoginForm() {
     if (
       loginMutation.isError &&
       error instanceof ApiError &&
-      error.code === "LOGIN_RATE_LIMITED" &&
+      error.code === API_ERROR_CODES.LOGIN_RATE_LIMITED &&
       typeof error.retryAfterSeconds === "number"
     ) {
       const attemptedEmail = loginMutation.variables?.email ?? "";
@@ -101,7 +103,7 @@ export function LoginForm() {
   const isRateLimitError =
     loginMutation.isError &&
     loginMutation.error instanceof ApiError &&
-    loginMutation.error.code === "LOGIN_RATE_LIMITED";
+    loginMutation.error.code === API_ERROR_CODES.LOGIN_RATE_LIMITED;
 
   const canSubmit =
     Boolean(email) && Boolean(password) && !isLockedOutForCurrentEmail;

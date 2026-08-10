@@ -18,6 +18,7 @@ import { Alert } from "@/components/ui/alert";
 import { useTickets } from "@/lib/queries/use-tickets";
 import { cn } from "@/lib/utils";
 import { TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { TicketRow } from "../ticket-row";
 import { TicketPagination } from "../ticket-pagination";
 import { TicketSortControls } from "../ticket-sort-controls";
@@ -93,7 +94,7 @@ export function TicketListView() {
           </p>
         </div>
 
-        <Link href="/tickets/new" className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
+        <Link href={ROUTES.NEW_TICKET} className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
           {TICKET_LIST_TEXT.NEW_TICKET_LINK}
         </Link>
       </div>
@@ -122,7 +123,7 @@ export function TicketListView() {
                 : TICKET_LIST_TEXT.NO_TICKETS_YET}
             </p>
             {page === DEFAULT_PAGE && (
-              <Link href="/tickets/new" className={LINK_BUTTON_CLASSES.secondary}>
+              <Link href={ROUTES.NEW_TICKET} className={LINK_BUTTON_CLASSES.secondary}>
                 {TICKET_LIST_TEXT.FILE_FIRST_TICKET}
               </Link>
             )}

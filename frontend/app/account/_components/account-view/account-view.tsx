@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/queries/use-profile";
 import { formatRole } from "@/lib/utils";
 import { ACCOUNT_VIEW_TEXT } from "@/lib/constants/text/account.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { NameTab } from "../name-tab";
 import { EmailTab } from "../email-tab";
 import { PasswordTab } from "../password-tab";
@@ -59,7 +60,7 @@ export function AccountView() {
     return (
       <Alert tone="danger">
         {ACCOUNT_VIEW_TEXT.LOAD_ERROR}{" "}
-        <a href="/login?redirectTo=/account" className="underline">
+        <a href={`${ROUTES.LOGIN}?redirectTo=${ROUTES.ACCOUNT}`} className="underline">
           {ACCOUNT_VIEW_TEXT.LOG_IN_AGAIN}
         </a>
         .

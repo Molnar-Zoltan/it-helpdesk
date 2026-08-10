@@ -5,6 +5,7 @@ import Link from "next/link";
 import { User } from "lucide-react";
 import { formatRole } from "@/lib/utils";
 import { USER_MENU_TEXT } from "@/lib/constants/text/common.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import type { UserMenuProps } from "./user-menu.types";
 
 export function UserMenu({
@@ -64,7 +65,7 @@ export function UserMenu({
           </div>
 
           <Link
-            href="/account"
+            href={ROUTES.ACCOUNT}
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text"

@@ -7,6 +7,7 @@ import { useLogout } from "@/lib/mutations/use-logout";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { HEADER_TEXT } from "@/lib/constants/text/common.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export function Header() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <Link
-          href="/"
+          href={ROUTES.HOME}
           className="font-mono text-sm font-semibold tracking-wide text-text"
         >
           {HEADER_TEXT.LOGO}
@@ -32,7 +33,7 @@ export function Header() {
           */}
           {profile && (
             <Link
-              href="/tickets"
+              href={ROUTES.TICKETS}
               className="text-sm text-text-secondary transition-colors hover:text-text"
             >
               {HEADER_TEXT.NAV_TICKETS}
@@ -55,13 +56,13 @@ export function Header() {
           ) : (
             <div className="flex items-center gap-4">
               <Link
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
                 {HEADER_TEXT.NAV_LOG_IN}
               </Link>
               <Link
-                href="/register"
+                href={ROUTES.REGISTER}
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
                 {HEADER_TEXT.NAV_SIGN_UP}

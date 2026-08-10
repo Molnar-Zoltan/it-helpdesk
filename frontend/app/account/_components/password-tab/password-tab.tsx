@@ -11,6 +11,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { useChangePassword } from "@/lib/mutations/use-change-password";
 import { ApiError } from "@/lib/api/client";
+import { API_ERROR_CODES } from "@helpdesk/shared";
 import {
   changePasswordSchema,
   NEW_PASSWORD_SAME_AS_CURRENT_MESSAGE,
@@ -61,7 +62,7 @@ export function PasswordTab({ isDemo }: PasswordTabProps) {
       setWeakPasswordWarning(false);
       toast.success(PASSWORD_TAB_TEXT.SUCCESS_TOAST, { duration: 7000 });
     } catch (error) {
-      if (error instanceof ApiError && error.code === "WEAK_PASSWORD_WARNING") {
+      if (error instanceof ApiError && error.code === API_ERROR_CODES.WEAK_PASSWORD_WARNING) {
         setWeakPasswordWarning(true);
         return;
       }

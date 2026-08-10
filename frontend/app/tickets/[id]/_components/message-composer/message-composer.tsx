@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TICKET_MESSAGE_CONTENT_MAX_LENGTH } from "@helpdesk/shared";
+import { TICKET_MESSAGE_CONTENT_MAX_LENGTH, API_ERROR_CODES } from "@helpdesk/shared";
 import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
@@ -43,7 +43,7 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
   const cooldownRemaining = useRateLimitCountdown(
     createMessageMutation.isError,
     createMessageMutation.error,
-    "TICKET_MESSAGE_RATE_LIMITED",
+    API_ERROR_CODES.TICKET_MESSAGE_RATE_LIMITED,
   );
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
 
@@ -53,7 +53,7 @@ export function MessageComposer({ ticketId, disabled }: MessageComposerProps) {
   const isRateLimitError =
     createMessageMutation.isError &&
     createMessageMutation.error instanceof ApiError &&
-    createMessageMutation.error.code === "TICKET_MESSAGE_RATE_LIMITED";
+    createMessageMutation.error.code === API_ERROR_CODES.TICKET_MESSAGE_RATE_LIMITED;
 
   const onSubmit = handleSubmit(async (values) => {
     try {

@@ -1,5 +1,6 @@
 import { AuthStatusBanner } from "./_components/auth-status-banner";
 import { HOME_TEXT, HOME_BUILD_PLAN_PHASES, type Phase } from "@/lib/constants/text/common.text";
+import { GITHUB_REPO_URL } from "@/lib/constants/routes.constants";
 
 const statusStyles: Record<Phase["status"], string> = {
   done: "text-[#4FD1C5]",
@@ -71,7 +72,7 @@ export default function Home() {
         </div>
 
         <a
-          href="https://github.com/Molnar-Zoltan/it-helpdesk"
+          href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-8 inline-flex items-center gap-1.5 text-sm text-[#8A96A6] underline decoration-[#212A35] underline-offset-4 transition-colors hover:text-[#E7ECF1] hover:decoration-[#F2A93B]"

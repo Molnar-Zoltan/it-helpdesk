@@ -1,4 +1,5 @@
 import { FOOTER_TEXT } from "@/lib/constants/text/common.text";
+import { GITHUB_REPO_URL } from "@/lib/constants/routes.constants";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -9,7 +10,7 @@ export function Footer() {
         <p>
           {FOOTER_TEXT.TAGLINE}{" "}
           <a
-            href="https://github.com/Molnar-Zoltan/it-helpdesk"
+            href={GITHUB_REPO_URL}
             target="_blank"
             rel="noreferrer"
             className="underline decoration-border-strong underline-offset-2 hover:text-text-secondary"

@@ -279,6 +279,23 @@ Messages are scoped per-ticket (not just per-user) so a cooldown on one thread d
 
 ---
 
+## Admin (`/admin`)
+
+### `POST /admin/demo-reset`
+Wipes every row in the database and re-seeds the demo fixture (the same three demo accounts and sample tickets/messages `seed.ts` produces). Called on a ~48-hour schedule by `.github/workflows/demo-reset.yml`, so the public live demo doesn't accumulate ticket/message data or real signups indefinitely.
+
+**Auth**: not `Authorization: Bearer <accessToken>` — a required `x-admin-reset-secret` header, checked against the `ADMIN_RESET_SECRET` env var by `DemoResetGuard`. Deliberately not JWT/role-based: the only intended caller is the scheduled workflow, not a logged-in user, so even the demo `ADMIN` account's own access token grants no access here.
+
+**Body**: none.
+
+**Response** `200`
+```json
+{ "message": "Demo data reset", "users": 3, "tickets": 9, "messages": 1 }
+```
+**Errors**: `401` if the header is missing, wrong, or `ADMIN_RESET_SECRET` isn't configured on the server.
+
+---
+
 ## Auth model summary
 
 | Endpoint | Auth required | `currentPassword` required | Revokes other sessions | Blocked on demo accounts |

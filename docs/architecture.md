@@ -19,17 +19,21 @@ backend/src/
   users/
   tickets/
   redis/
+  admin/
 
 backend/prisma/
   prisma.module.ts
   prisma.service.ts
+  seed.ts
+  seed-demo-data.ts
 ```
 
 - `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `guards/login-rate-limit.guard.ts` (Step 6), `login-rate-limit.util.ts`, `exceptions/login-rate-limited.exception.ts`, `strategies/jwt.strategy.ts`, `token.util.ts`.
 - `backend/src/users/` — owns authenticated self-service account actions for the signed-in user; main files: `users.controller.ts`, `users.service.ts`, `users.module.ts`, `dto/change-email.dto.ts`, `dto/change-password.dto.ts`, `dto/delete-account.dto.ts`, `dto/update-name.dto.ts`, `types/authenticated-request.type.ts`.
 - `backend/src/tickets/` — manual ticket creation and self-service ticket management for customers; main files: `tickets.controller.ts`, `tickets.service.ts`, `tickets.module.ts`, `dto/create-ticket.dto.ts`, `dto/find-tickets-query.dto.ts`, `dto/close-ticket.dto.ts`, `dto/reopen-ticket.dto.ts`, `dto/create-message.dto.ts`, `guards/ticket-create-rate-limit.guard.ts`, `guards/ticket-message-rate-limit.guard.ts` (Step 6), `exceptions/ticket-create-rate-limited.exception.ts`, `exceptions/ticket-message-rate-limited.exception.ts`. See [Manual ticket creation](#manual-ticket-creation) below for the design decisions behind it.
 - `backend/src/redis/` — global module wrapping a single `ioredis` client (`REDIS_URL`); main files: `redis.module.ts`, `redis.service.ts`. Consumed by `common/services/rate-limit.service.ts` (see [Rate limiting](#rate-limiting) below), not called directly by feature modules.
-- `backend/prisma/` — shared persistence wiring for Prisma access and database setup; main files: `prisma.service.ts`, `prisma.module.ts`, `schema.prisma`, `seed.ts`.
+- `backend/src/admin/` (Step 8.5) — operational actions with no user-facing login, gated by a shared secret instead of a JWT; main files: `admin.controller.ts`, `admin.service.ts`, `admin.module.ts`, `guards/demo-reset.guard.ts`. See [Demo reset](#demo-reset-step-85) below.
+- `backend/prisma/` — shared persistence wiring for Prisma access and database setup; main files: `prisma.service.ts`, `prisma.module.ts`, `schema.prisma`, `seed.ts`, `seed-demo-data.ts` (Step 8.5 — the insert logic extracted out of `seed.ts` so `AdminService.resetDemoData()` can reuse it; see [Demo reset](#demo-reset-step-85)).
 
 No `ai/` module is implemented yet, so AI-related responsibilities (Step 10) are still centralized rather than split into a dedicated Nest module.
 
@@ -84,6 +88,16 @@ Registration uses Turnstile instead of a request counter because signup is a one
 **Turnstile tokens are single-use.** A token consumed by one `POST /auth/register` call — successful or not — can't be reused on a second call, including a resubmit after `acknowledgeWeakPassword: true`. The frontend's `RegisterForm` accounts for this: any failed registration attempt resets its `TurnstileWidget` and clears the stored token, requiring a fresh one before either the primary submit or the weak-password "use this password anyway" resubmit can fire again.
 
 **Local/sandbox dev uses Cloudflare's official "always passes" test keys** (`backend/.env.example`'s `TURNSTILE_SECRET_KEY`, `frontend/.env.example`'s `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) rather than a custom `NODE_ENV`-gated bypass — a real Cloudflare-provided testing mechanism, so there's no security-relevant shortcut in the codebase that could accidentally ship live. The secret key is backend-only; the site key is public by design (`NEXT_PUBLIC_`) and lives in the frontend's env only, since the backend never needs it.
+
+## Demo reset (Step 8.5)
+
+The three seeded demo accounts aren't blocked from creating, closing, reopening, or messaging tickets — only the four `/users/me` self-service mutations are (see [Account self-service & deletion](#account-self-service--deletion-gdpr) below). Left alone, ticket/message data (and any real signups from registration, which has no such restriction at all) would accumulate indefinitely on the public live demo. `POST /admin/demo-reset` wipes the whole database and re-seeds the demo fixture, called on a ~48-hour schedule by `.github/workflows/demo-reset.yml`.
+
+**Auth is a shared secret, not a login.** The only intended caller is a scheduled GitHub Actions job, which has no user session to present — so `DemoResetGuard` (`backend/src/admin/guards/demo-reset.guard.ts`) checks a `x-admin-reset-secret` header against the `ADMIN_RESET_SECRET` env var directly, with no `JwtAuthGuard`/`RolesGuard` involved at all. This is deliberate: it means the demo `ADMIN` account's own access token grants no access to this endpoint either — role has no bearing here, only possession of the secret does. The comparison uses `crypto.timingSafeEqual` (length-checked first, since it throws on mismatched lengths) rather than `===`, for the same constant-time reasoning as the token-hash comparisons in `auth/`.
+
+**Full wipe, not a diff against seed state.** Since demo accounts can generate real ticket/message data through normal use (and registration can create entirely new accounts), a partial reset that only touched "known seed rows" would leave that behind. `AdminService.resetDemoData()` deletes every row — `Message` → `Ticket` → `RefreshToken`/`AiUsage`/`IpUsage` → `User`, respecting FK direction — then re-seeds, all inside one `$transaction` so a caller never observes a half-empty database mid-reset.
+
+**One insert path, not two.** The demo-fixture insert logic that used to live inline in `seed.ts` (Step 4.1.9) was extracted into `backend/prisma/seed-demo-data.ts`'s `seedDemoData()`, typed against `Prisma.TransactionClient` — the narrower of the two shapes a plain `PrismaClient` also satisfies. `seed.ts` (a fresh `prisma db seed`) and `AdminService.resetDemoData()` (an interactive-transaction client) both call the same function, so neither can drift into inserting slightly different demo state.
 
 ## Account self-service & deletion (GDPR)
 

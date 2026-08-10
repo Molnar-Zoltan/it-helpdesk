@@ -8,15 +8,16 @@ import {
   containsEmoji,
 } from "@helpdesk/shared";
 import { cn } from "@/lib/utils";
+import { PASSWORD_REQUIREMENTS_TEXT } from "@/lib/constants/text/validation.text";
 import type { PasswordRequirementsProps } from "./password-requirements.types";
 
 const REQUIREMENTS: { label: string; test: (value: string) => boolean }[] = [
   { label: `${PASSWORD_MIN_LENGTH}+ characters`, test: hasMinLength },
-  { label: "One uppercase letter", test: hasUppercase },
-  { label: "One lowercase letter", test: hasLowercase },
-  { label: "One number", test: hasDigit },
-  { label: "One symbol", test: hasSpecialChar },
-  { label: "No emoji", test: (value) => !containsEmoji(value) },
+  { label: PASSWORD_REQUIREMENTS_TEXT.UPPERCASE, test: hasUppercase },
+  { label: PASSWORD_REQUIREMENTS_TEXT.LOWERCASE, test: hasLowercase },
+  { label: PASSWORD_REQUIREMENTS_TEXT.DIGIT, test: hasDigit },
+  { label: PASSWORD_REQUIREMENTS_TEXT.SPECIAL_CHAR, test: hasSpecialChar },
+  { label: PASSWORD_REQUIREMENTS_TEXT.NO_EMOJI, test: (value) => !containsEmoji(value) },
 ];
 
 export function PasswordRequirements({ password }: PasswordRequirementsProps) {

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { TicketDetailView } from "./_components/ticket-detail-view";
+import { TICKET_DETAIL_TEXT } from "@/lib/constants/text/tickets.text";
 
 export const metadata: Metadata = {
-  title: "Ticket — IT Helpdesk",
+  title: TICKET_DETAIL_TEXT.META_TITLE,
 };
 
 // Next 16: dynamic route `params` is a Promise, must be awaited before use

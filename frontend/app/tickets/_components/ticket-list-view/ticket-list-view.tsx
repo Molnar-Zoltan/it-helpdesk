@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
+  DEFAULT_LIMIT,
   DEFAULT_PAGE,
   DEFAULT_SORT_ORDER,
   DEFAULT_TICKET_SORT_BY,
@@ -16,6 +17,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { useTickets } from "@/lib/queries/use-tickets";
 import { cn } from "@/lib/utils";
+import { TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { TicketRow } from "../ticket-row";
 import { TicketPagination } from "../ticket-pagination";
 import { TicketSortControls } from "../ticket-sort-controls";
@@ -64,7 +67,11 @@ export function TicketListView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { page, sortBy, sortOrder } = readQueryParams(searchParams);
-  const limit = 20;
+  // Not currently exposed as a user-facing control (no page-size picker),
+  // so this stays a plain constant rather than a URL param like page/sortBy
+  // -- but it's pinned to the shared default so it can't drift from what
+  // the backend DTO falls back to when a request omits `limit` entirely.
+  const limit = DEFAULT_LIMIT;
 
   const updateParams = (updates: Record<string, string>, resetPage = false) => {
     const params = new URLSearchParams(searchParams);
@@ -81,14 +88,14 @@ export function TicketListView() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-text">My tickets</h1>
+          <h1 className="text-2xl font-semibold text-text">{TICKET_LIST_TEXT.HEADING}</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Everything you&apos;ve filed, newest first by default.
+            {TICKET_LIST_TEXT.SUBHEADING}
           </p>
         </div>
 
-        <Link href="/tickets/new" className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
-          New ticket
+        <Link href={ROUTES.NEW_TICKET} className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
+          {TICKET_LIST_TEXT.NEW_TICKET_LINK}
         </Link>
       </div>
 
@@ -104,7 +111,7 @@ export function TicketListView() {
       <Card>
         {ticketsQuery.isLoading ? (
           <div className="flex justify-center py-16">
-            <Spinner label="Loading tickets" />
+            <Spinner label={TICKET_LIST_TEXT.LOADING} />
           </div>
         ) : ticketsQuery.isError ? (
           <Alert tone="danger">{ticketsQuery.error.message}</Alert>
@@ -112,12 +119,12 @@ export function TicketListView() {
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <p className="text-text-secondary">
               {page > DEFAULT_PAGE
-                ? "No tickets on this page."
-                : "You haven't filed any tickets yet."}
+                ? TICKET_LIST_TEXT.NO_RESULTS_ON_PAGE
+                : TICKET_LIST_TEXT.NO_TICKETS_YET}
             </p>
             {page === DEFAULT_PAGE && (
-              <Link href="/tickets/new" className={LINK_BUTTON_CLASSES.secondary}>
-                File your first ticket
+              <Link href={ROUTES.NEW_TICKET} className={LINK_BUTTON_CLASSES.secondary}>
+                {TICKET_LIST_TEXT.FILE_FIRST_TICKET}
               </Link>
             )}
           </div>

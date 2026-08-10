@@ -6,6 +6,9 @@ export type { Role, TicketStatus, TicketPriority } from './enums';
 
 export { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './auth-config';
 
+export type { ApiErrorCode } from './api-error-codes';
+export { API_ERROR_CODES } from './api-error-codes';
+
 export type { DemoUser, DemoTicket, DemoMessage } from './demo-data';
 export {
   DEMO_PASSWORD,

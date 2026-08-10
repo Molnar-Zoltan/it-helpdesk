@@ -6,6 +6,8 @@ import { useProfile } from "@/lib/queries/use-profile";
 import { useLogout } from "@/lib/mutations/use-logout";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Spinner } from "@/components/ui/spinner";
+import { HEADER_TEXT } from "@/lib/constants/text/common.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export function Header() {
   const router = useRouter();
@@ -16,10 +18,10 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <Link
-          href="/"
+          href={ROUTES.HOME}
           className="font-mono text-sm font-semibold tracking-wide text-text"
         >
-          IT Helpdesk
+          {HEADER_TEXT.LOGO}
         </Link>
 
         <nav className="flex items-center gap-6">
@@ -31,15 +33,15 @@ export function Header() {
           */}
           {profile && (
             <Link
-              href="/tickets"
+              href={ROUTES.TICKETS}
               className="text-sm text-text-secondary transition-colors hover:text-text"
             >
-              Tickets
+              {HEADER_TEXT.NAV_TICKETS}
             </Link>
           )}
 
           {isLoading ? (
-            <Spinner label="Loading account" />
+            <Spinner label={HEADER_TEXT.LOADING_ACCOUNT} />
           ) : profile ? (
             <UserMenu
               firstName={profile.firstName}
@@ -54,16 +56,16 @@ export function Header() {
           ) : (
             <div className="flex items-center gap-4">
               <Link
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
-                Log in
+                {HEADER_TEXT.NAV_LOG_IN}
               </Link>
               <Link
-                href="/register"
+                href={ROUTES.REGISTER}
                 className="text-sm text-text-secondary transition-colors hover:text-text"
               >
-                Sign up
+                {HEADER_TEXT.NAV_SIGN_UP}
               </Link>
             </div>
           )}

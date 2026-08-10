@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TICKET_DESCRIPTION_MAX_LENGTH } from "@helpdesk/shared";
+import { TICKET_DESCRIPTION_MAX_LENGTH, API_ERROR_CODES } from "@helpdesk/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
@@ -15,18 +15,13 @@ import { ApiError } from "@/lib/api/client";
 import { useCreateTicket } from "@/lib/mutations/use-create-ticket";
 import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import {
   createTicketSchema,
   TICKET_PRIORITIES,
   type CreateTicketFormValues,
 } from "@/lib/validation/ticket-schemas";
-
-const PRIORITY_LABELS: Record<(typeof TICKET_PRIORITIES)[number], string> = {
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
-  URGENT: "Urgent",
-};
+import { NEW_TICKET_TEXT, TICKET_PRIORITY_LABELS } from "@/lib/constants/text/tickets.text";
 
 const DEFAULT_VALUES: CreateTicketFormValues = {
   title: "",
@@ -58,7 +53,7 @@ export function NewTicketForm() {
   const cooldownRemaining = useRateLimitCountdown(
     createTicketMutation.isError,
     createTicketMutation.error,
-    "TICKET_CREATE_RATE_LIMITED",
+    API_ERROR_CODES.TICKET_CREATE_RATE_LIMITED,
   );
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
 
@@ -71,7 +66,7 @@ export function NewTicketForm() {
   const isRateLimitError =
     createTicketMutation.isError &&
     createTicketMutation.error instanceof ApiError &&
-    createTicketMutation.error.code === "TICKET_CREATE_RATE_LIMITED";
+    createTicketMutation.error.code === API_ERROR_CODES.TICKET_CREATE_RATE_LIMITED;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -83,7 +78,7 @@ export function NewTicketForm() {
       // register/login's post-auth redirect. "Create another" is still
       // one click away via /tickets/new in the header/list, so nothing
       // from that flow is lost.
-      router.push(`/tickets/${ticket.id}`);
+      router.push(ROUTES.ticketDetail(ticket.id));
     } catch {
       // Surfaced below via createTicketMutation.error.
     }
@@ -91,11 +86,11 @@ export function NewTicketForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-      <FormField label="Title" error={errors.title?.message}>
+      <FormField label={NEW_TICKET_TEXT.TITLE_LABEL} error={errors.title?.message}>
         {(field) => (
           <Input
             {...field}
-            placeholder="Short summary of the issue"
+            placeholder={NEW_TICKET_TEXT.TITLE_PLACEHOLDER}
             hasError={Boolean(errors.title)}
             {...register("title")}
           />
@@ -103,31 +98,31 @@ export function NewTicketForm() {
       </FormField>
 
       <FormField
-        label="Description"
+        label={NEW_TICKET_TEXT.DESCRIPTION_LABEL}
         error={errors.description?.message}
         hint={
           errors.description
             ? undefined
-            : `${descriptionLength}/${TICKET_DESCRIPTION_MAX_LENGTH} characters`
+            : NEW_TICKET_TEXT.charactersHint(descriptionLength, TICKET_DESCRIPTION_MAX_LENGTH)
         }
       >
         {(field) => (
           <TextArea
             {...field}
             rows={8}
-            placeholder="What's happening? Include steps to reproduce, error messages, and when it started."
+            placeholder={NEW_TICKET_TEXT.DESCRIPTION_PLACEHOLDER}
             hasError={Boolean(errors.description)}
             {...register("description")}
           />
         )}
       </FormField>
 
-      <FormField label="Priority" error={errors.priority?.message}>
+      <FormField label={NEW_TICKET_TEXT.PRIORITY_LABEL} error={errors.priority?.message}>
         {(field) => (
           <Select {...field} hasError={Boolean(errors.priority)} {...register("priority")}>
             {TICKET_PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>
-                {PRIORITY_LABELS[priority]}
+                {TICKET_PRIORITY_LABELS[priority]}
               </option>
             ))}
           </Select>
@@ -136,8 +131,7 @@ export function NewTicketForm() {
 
       {isOnCooldown ? (
         <Alert tone="danger">
-          You&apos;re creating tickets too quickly. Try again in{" "}
-          {formatCountdown(cooldownRemaining)}.
+          {NEW_TICKET_TEXT.rateLimitedMessage(formatCountdown(cooldownRemaining))}
         </Alert>
       ) : (
         createTicketMutation.isError &&
@@ -152,7 +146,7 @@ export function NewTicketForm() {
           disabled={isOnCooldown}
           isLoading={createTicketMutation.isPending}
         >
-          Submit ticket
+          {NEW_TICKET_TEXT.SUBMIT}
         </Button>
 
         {/*
@@ -176,7 +170,7 @@ export function NewTicketForm() {
           instead of the native disabled attribute an <a> can't have.
         */}
         <Link
-          href="/tickets"
+          href={ROUTES.TICKETS}
           aria-disabled={createTicketMutation.isPending}
           tabIndex={createTicketMutation.isPending ? -1 : undefined}
           onClick={(event) => {
@@ -191,7 +185,7 @@ export function NewTicketForm() {
               : "cursor-pointer",
           )}
         >
-          Cancel
+          {NEW_TICKET_TEXT.CANCEL}
         </Link>
       </div>
     </form>

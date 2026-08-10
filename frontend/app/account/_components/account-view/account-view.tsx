@@ -10,16 +10,18 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/queries/use-profile";
 import { formatRole } from "@/lib/utils";
+import { ACCOUNT_VIEW_TEXT } from "@/lib/constants/text/account.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import { NameTab } from "../name-tab";
 import { EmailTab } from "../email-tab";
 import { PasswordTab } from "../password-tab";
 import { DeleteAccountTab } from "../delete-account-tab";
 
 const TABS: TabItem[] = [
-  { id: "name", label: "Name" },
-  { id: "email", label: "Email" },
-  { id: "password", label: "Password" },
-  { id: "delete", label: "Delete account" },
+  { id: "name", label: ACCOUNT_VIEW_TEXT.TAB_NAME },
+  { id: "email", label: ACCOUNT_VIEW_TEXT.TAB_EMAIL },
+  { id: "password", label: ACCOUNT_VIEW_TEXT.TAB_PASSWORD },
+  { id: "delete", label: ACCOUNT_VIEW_TEXT.TAB_DELETE },
 ];
 
 const DEFAULT_TAB = "name";
@@ -45,7 +47,7 @@ export function AccountView() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
-        <Spinner label="Loading account" />
+        <Spinner label={ACCOUNT_VIEW_TEXT.LOADING} />
       </div>
     );
   }
@@ -57,9 +59,9 @@ export function AccountView() {
   if (isError || !profile) {
     return (
       <Alert tone="danger">
-        We couldn&apos;t load your account.{" "}
-        <a href="/login?redirectTo=/account" className="underline">
-          Log in again
+        {ACCOUNT_VIEW_TEXT.LOAD_ERROR}{" "}
+        <a href={`${ROUTES.LOGIN}?redirectTo=${ROUTES.ACCOUNT}`} className="underline">
+          {ACCOUNT_VIEW_TEXT.LOG_IN_AGAIN}
         </a>
         .
       </Alert>
@@ -70,16 +72,16 @@ export function AccountView() {
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-text">Account</h1>
+          <h1 className="text-2xl font-semibold text-text">{ACCOUNT_VIEW_TEXT.HEADING}</h1>
           <Badge>{formatRole(profile.role)}</Badge>
         </div>
         <p className="mt-1 text-sm text-text-secondary">
-          Manage your profile, credentials, and account data.
+          {ACCOUNT_VIEW_TEXT.SUBHEADING}
         </p>
       </div>
 
       <Tabs
-        label="Account settings sections"
+        label={ACCOUNT_VIEW_TEXT.TABS_ARIA_LABEL}
         tabs={TABS}
         activeTab={activeTab}
         onChange={handleTabChange}

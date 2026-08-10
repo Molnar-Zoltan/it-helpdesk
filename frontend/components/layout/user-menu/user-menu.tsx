@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { User } from "lucide-react";
 import { formatRole } from "@/lib/utils";
+import { USER_MENU_TEXT } from "@/lib/constants/text/common.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 import type { UserMenuProps } from "./user-menu.types";
 
 export function UserMenu({
@@ -48,7 +50,7 @@ export function UserMenu({
         className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:text-text"
       >
         <User className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">Account menu</span>
+        <span className="sr-only">{USER_MENU_TEXT.MENU_BUTTON_SR_LABEL}</span>
       </button>
 
       {open && (
@@ -57,18 +59,18 @@ export function UserMenu({
           className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-border bg-surface-raised py-1 shadow-lg"
         >
           <div className="border-b border-border px-3 py-2 text-xs text-text-muted">
-            <p>Signed in as{" "}
+            <p>{USER_MENU_TEXT.SIGNED_IN_AS_PREFIX}{" "}
             <span className="text-text-secondary">{firstName}</span>{"."}</p>
             <p className="text-text-secondary">{formatRole(role)}</p>
           </div>
 
           <Link
-            href="/account"
+            href={ROUTES.ACCOUNT}
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text"
           >
-            Account
+            {USER_MENU_TEXT.ACCOUNT_LINK}
           </Link>
 
           <button
@@ -81,7 +83,7 @@ export function UserMenu({
             }}
             className="block w-full cursor-pointer px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLoggingOut ? "Logging out…" : "Log out"}
+            {isLoggingOut ? USER_MENU_TEXT.LOGGING_OUT : USER_MENU_TEXT.LOG_OUT}
           </button>
         </div>
       )}

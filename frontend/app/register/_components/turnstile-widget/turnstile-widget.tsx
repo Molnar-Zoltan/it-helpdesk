@@ -6,10 +6,7 @@ import type {
   TurnstileWidgetHandle,
   TurnstileWidgetProps,
 } from "./turnstile-widget.types";
-
-const TURNSTILE_SCRIPT_SRC =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js";
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+import { TURNSTILE_SCRIPT_SRC, TURNSTILE_SITE_KEY } from "@/lib/constants/turnstile.constants";
 
 /**
  * Renders Cloudflare's Turnstile challenge widget on the register form

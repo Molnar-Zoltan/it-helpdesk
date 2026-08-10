@@ -16,6 +16,7 @@ import {
   type DeleteAccountFormValues,
 } from "@/lib/validation/account-schemas";
 import { DemoAccountNotice } from "../demo-account-notice";
+import { DELETE_ACCOUNT_TAB_TEXT } from "@/lib/constants/text/account.text";
 
 interface DeleteAccountTabProps {
   isDemo: boolean;
@@ -55,7 +56,7 @@ export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
   const onSubmit = handleSubmit(async (values) => {
     try {
       await deleteAccountMutation.mutateAsync(values);
-      toast.success("Account deleted.");
+      toast.success(DELETE_ACCOUNT_TAB_TEXT.SUCCESS_TOAST);
       // Same destination as logout (see header.tsx) — "/" already renders
       // the logged-out header state correctly.
       router.push("/");
@@ -68,9 +69,9 @@ export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-text">Delete account</h2>
+        <h2 className="text-lg font-semibold text-text">{DELETE_ACCOUNT_TAB_TEXT.HEADING}</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Permanently deletes your account. This can&apos;t be undone.
+          {DELETE_ACCOUNT_TAB_TEXT.DESCRIPTION}
         </p>
       </div>
 
@@ -83,23 +84,22 @@ export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
         disabled={isDemo}
         onClick={() => setModalOpen(true)}
       >
-        Delete account
+        {DELETE_ACCOUNT_TAB_TEXT.TRIGGER_BUTTON}
       </Button>
 
       <Modal
         open={modalOpen}
         onClose={closeModal}
-        title="Delete your account?"
+        title={DELETE_ACCOUNT_TAB_TEXT.MODAL_TITLE}
         preventClose={deleteAccountMutation.isPending}
       >
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           <p className="text-sm text-text-secondary">
-            This permanently deletes your account and can&apos;t be undone.
-            Enter your password to confirm.
+            {DELETE_ACCOUNT_TAB_TEXT.MODAL_BODY}
           </p>
 
           <FormField
-            label="Current password"
+            label={DELETE_ACCOUNT_TAB_TEXT.CURRENT_PASSWORD_LABEL}
             error={errors.currentPassword?.message}
           >
             {(field) => (
@@ -123,7 +123,7 @@ export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
               onClick={closeModal}
               disabled={deleteAccountMutation.isPending}
             >
-              Cancel
+              {DELETE_ACCOUNT_TAB_TEXT.CANCEL}
             </Button>
             <Button
               type="submit"
@@ -131,7 +131,7 @@ export function DeleteAccountTab({ isDemo }: DeleteAccountTabProps) {
               disabled={currentPasswordValue.length === 0}
               isLoading={deleteAccountMutation.isPending}
             >
-              Delete account
+              {DELETE_ACCOUNT_TAB_TEXT.CONFIRM_BUTTON}
             </Button>
           </div>
         </form>

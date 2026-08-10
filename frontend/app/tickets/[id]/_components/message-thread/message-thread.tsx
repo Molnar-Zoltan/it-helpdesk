@@ -4,6 +4,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { useTicketMessages } from "@/lib/queries/use-ticket-messages";
 import { useProfile } from "@/lib/queries/use-profile";
+import { MESSAGE_THREAD_TEXT } from "@/lib/constants/text/tickets.text";
 import { MessageItem } from "../message-item";
 import type { MessageThreadProps } from "./message-thread.types";
 
@@ -14,7 +15,7 @@ export function MessageThread({ ticketId }: MessageThreadProps) {
   if (messagesQuery.isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <Spinner label="Loading messages" />
+        <Spinner label={MESSAGE_THREAD_TEXT.LOADING} />
       </div>
     );
   }
@@ -26,7 +27,7 @@ export function MessageThread({ ticketId }: MessageThreadProps) {
   if (!messagesQuery.data || messagesQuery.data.length === 0) {
     return (
       <p className="py-4 text-center text-sm text-text-secondary">
-        No messages yet. Add one below.
+        {MESSAGE_THREAD_TEXT.EMPTY}
       </p>
     );
   }

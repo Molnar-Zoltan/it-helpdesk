@@ -14,6 +14,7 @@ import {
 } from "@/lib/validation/account-schemas";
 import type { UserProfile } from "@/lib/api/types";
 import { DemoAccountNotice } from "../demo-account-notice";
+import { NAME_TAB_TEXT } from "@/lib/constants/text/account.text";
 
 interface NameTabProps {
   profile: UserProfile;
@@ -46,7 +47,7 @@ export function NameTab({ profile, isDemo }: NameTabProps) {
       // waiting on the invalidated profile query to refetch and re-key the
       // form's defaultValues.
       reset({ firstName: updated.firstName, lastName: updated.lastName });
-      toast.success("Name updated");
+      toast.success(NAME_TAB_TEXT.SUCCESS_TOAST);
     } catch {
       // Surfaced below via updateNameMutation.error.
     }
@@ -55,15 +56,15 @@ export function NameTab({ profile, isDemo }: NameTabProps) {
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-semibold text-text">Name</h2>
+        <h2 className="text-lg font-semibold text-text">{NAME_TAB_TEXT.HEADING}</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          The name shown on your tickets and in the header menu.
+          {NAME_TAB_TEXT.DESCRIPTION}
         </p>
       </div>
 
       {isDemo && <DemoAccountNotice />}
 
-      <FormField label="First name" error={errors.firstName?.message}>
+      <FormField label={NAME_TAB_TEXT.FIRST_NAME_LABEL} error={errors.firstName?.message}>
         {(field) => (
           <Input
             {...field}
@@ -75,7 +76,7 @@ export function NameTab({ profile, isDemo }: NameTabProps) {
         )}
       </FormField>
 
-      <FormField label="Last name" error={errors.lastName?.message}>
+      <FormField label={NAME_TAB_TEXT.LAST_NAME_LABEL} error={errors.lastName?.message}>
         {(field) => (
           <Input
             {...field}
@@ -97,7 +98,7 @@ export function NameTab({ profile, isDemo }: NameTabProps) {
         isLoading={updateNameMutation.isPending}
         className="self-start"
       >
-        Save changes
+        {NAME_TAB_TEXT.SUBMIT}
       </Button>
     </form>
   );

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { BadgeTone } from "@/components/ui/badge";
+import { TICKET_PRIORITY_LABELS } from "@/lib/constants/text/tickets.text";
 import type { PriorityBadgeProps } from "./priority-badge.types";
 
 /**
@@ -8,13 +9,6 @@ import type { PriorityBadgeProps } from "./priority-badge.types";
  * priorities that need it, not giving every level a unique color for its
  * own sake.
  */
-const PRIORITY_LABELS: Record<PriorityBadgeProps["priority"], string> = {
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
-  URGENT: "Urgent",
-};
-
 const PRIORITY_TONES: Record<PriorityBadgeProps["priority"], BadgeTone> = {
   LOW: "neutral",
   MEDIUM: "neutral",
@@ -23,5 +17,5 @@ const PRIORITY_TONES: Record<PriorityBadgeProps["priority"], BadgeTone> = {
 };
 
 export function PriorityBadge({ priority }: PriorityBadgeProps) {
-  return <Badge tone={PRIORITY_TONES[priority]}>{PRIORITY_LABELS[priority]}</Badge>;
+  return <Badge tone={PRIORITY_TONES[priority]}>{TICKET_PRIORITY_LABELS[priority]}</Badge>;
 }

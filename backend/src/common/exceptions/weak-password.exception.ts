@@ -1,4 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { API_ERROR_CODES } from '@helpdesk/shared';
 
 /**
  * Thrown when a password passes all hard-block checks (length, complexity,
@@ -14,7 +15,7 @@ export class WeakPasswordException extends HttpException {
     super(
       {
         statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-        error: 'WEAK_PASSWORD_WARNING',
+        error: API_ERROR_CODES.WEAK_PASSWORD_WARNING,
         message:
           'This password has appeared in a known data breach. You can continue anyway, or choose a different password.',
       },

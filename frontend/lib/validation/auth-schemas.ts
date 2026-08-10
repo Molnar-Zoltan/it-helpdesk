@@ -9,6 +9,7 @@ import {
   isStrongPassword,
   containsEmoji,
 } from "@helpdesk/shared";
+import { AUTH_VALIDATION_TEXT } from "@/lib/constants/text/validation.text";
 
 /**
  * Wraps @helpdesk/shared's validation constants/functions rather than
@@ -22,29 +23,26 @@ import {
 
 export const email = z
   .string()
-  .min(1, "Email is required")
-  .max(EMAIL_MAX_LENGTH, `Email must be ${EMAIL_MAX_LENGTH} characters or fewer`)
-  .email("Enter a valid email address");
+  .min(1, AUTH_VALIDATION_TEXT.EMAIL_REQUIRED)
+  .max(EMAIL_MAX_LENGTH, AUTH_VALIDATION_TEXT.emailMaxLength)
+  .email(AUTH_VALIDATION_TEXT.EMAIL_INVALID);
 
 export function nameField(label: string) {
   return z
     .string()
-    .min(NAME_MIN_LENGTH, `${label} is required`)
-    .max(NAME_MAX_LENGTH, `${label} must be ${NAME_MAX_LENGTH} characters or fewer`)
+    .min(NAME_MIN_LENGTH, AUTH_VALIDATION_TEXT.nameRequired(label))
+    .max(NAME_MAX_LENGTH, AUTH_VALIDATION_TEXT.nameMaxLength(label))
     .refine(isValidName, {
-      message: `${label} can only contain letters, spaces, hyphens, and apostrophes`,
+      message: AUTH_VALIDATION_TEXT.nameInvalidChars(label),
     });
 }
 
 export const password = z
   .string()
-  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .max(PASSWORD_MAX_LENGTH, `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer`)
-  .refine((value) => !containsEmoji(value), "Password can't contain emoji")
-  .refine(
-    isStrongPassword,
-    "Password needs an uppercase letter, a lowercase letter, a digit, and a symbol",
-  );
+  .min(PASSWORD_MIN_LENGTH, AUTH_VALIDATION_TEXT.passwordMinLength)
+  .max(PASSWORD_MAX_LENGTH, AUTH_VALIDATION_TEXT.passwordMaxLength)
+  .refine((value) => !containsEmoji(value), AUTH_VALIDATION_TEXT.PASSWORD_NO_EMOJI)
+  .refine(isStrongPassword, AUTH_VALIDATION_TEXT.PASSWORD_NOT_STRONG);
 
 export const loginSchema = z.object({
   email,
@@ -54,8 +52,8 @@ export const loginSchema = z.object({
   // a client-side rule mismatch. Only presence/length matter.
   password: z
     .string()
-    .min(1, "Password is required")
-    .max(PASSWORD_MAX_LENGTH, `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer`),
+    .min(1, AUTH_VALIDATION_TEXT.LOGIN_PASSWORD_REQUIRED)
+    .max(PASSWORD_MAX_LENGTH, AUTH_VALIDATION_TEXT.passwordMaxLength),
 });
 export type LoginFormValues = z.infer<typeof loginSchema>;
 
@@ -67,10 +65,10 @@ export const registerSchema = z
     password,
     // Client-only field — never sent to the backend, stripped before the
     // register mutation is called.
-    confirmPassword: z.string().min(1, "Please confirm your password"),
+    confirmPassword: z.string().min(1, AUTH_VALIDATION_TEXT.CONFIRM_PASSWORD_REQUIRED),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
+    message: AUTH_VALIDATION_TEXT.PASSWORDS_DONT_MATCH,
     path: ["confirmPassword"],
   });
 export type RegisterFormValues = z.infer<typeof registerSchema>;

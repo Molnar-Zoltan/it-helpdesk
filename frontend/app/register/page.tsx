@@ -3,18 +3,20 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Card } from "@/components/ui/card";
 import { RegisterForm } from "./_components/register-form";
+import { REGISTER_TEXT } from "@/lib/constants/text/auth.text";
+import { ROUTES } from "@/lib/constants/routes.constants";
 
 export const metadata: Metadata = {
-  title: "Create account — IT Helpdesk",
+  title: REGISTER_TEXT.META_TITLE,
 };
 
 export default function RegisterPage() {
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 py-10">
       <div>
-        <h1 className="text-2xl font-semibold text-text">Create an account</h1>
+        <h1 className="text-2xl font-semibold text-text">{REGISTER_TEXT.HEADING}</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          File tickets and track their progress.
+          {REGISTER_TEXT.SUBHEADING}
         </p>
       </div>
 
@@ -25,9 +27,9 @@ export default function RegisterPage() {
       </Card>
 
       <p className="text-center text-sm text-text-secondary">
-        Already have an account?{" "}
-        <Link href="/login" className="text-accent-done hover:underline">
-          Log in
+        {REGISTER_TEXT.HAVE_ACCOUNT_PROMPT}{" "}
+        <Link href={ROUTES.LOGIN} className="text-accent-done hover:underline">
+          {REGISTER_TEXT.LOG_IN_LINK}
         </Link>
       </p>
     </div>

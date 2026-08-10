@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { hashToken, requireEnv } from './token.util';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
 import { RateLimitService } from '../common/services/rate-limit.service';
+import { SessionRevocationService } from '../common/services/session-revocation.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 import { AUTH_ERRORS } from '../common/constants/error-messages.constants';
 import {
@@ -27,6 +28,7 @@ export class AuthService {
     private jwt: JwtService,
     private pwnedPasswords: PwnedPasswordService,
     private rateLimit: RateLimitService,
+    private sessionRevocation: SessionRevocationService,
   ) {}
 
   async register(
@@ -135,6 +137,13 @@ export class AuthService {
       where: { id: stored.id },
       data: { revoked: true },
     });
+    // The old access token paired with this refresh token is usually near
+    // its own expiry already (that's typically why refresh was called),
+    // but rotation can also be triggered early (e.g. proactively by the
+    // frontend proxy) — so still close the same live-revocation gap as
+    // logout/password-change/account-deletion rather than leaving a
+    // narrower but still-real window.
+    await this.sessionRevocation.revoke(stored.id);
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: payload.sub },
@@ -144,9 +153,18 @@ export class AuthService {
 
   async logout(refreshToken: string) {
     const tokenHash = hashToken(refreshToken);
-    await this.prisma.refreshToken.updateMany({
+    // findUnique (not updateMany) so we have the row id to also revoke in
+    // Redis — without it, the paired access token would otherwise stay
+    // usable for up to ACCESS_TOKEN_TTL_MS after a "successful" logout.
+    const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
+    });
+    if (!stored) return;
+
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
       data: { revoked: true },
     });
+    await this.sessionRevocation.revoke(stored.id);
   }
 }

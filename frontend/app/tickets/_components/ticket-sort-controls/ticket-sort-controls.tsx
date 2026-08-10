@@ -1,13 +1,7 @@
 import { TICKET_SORTABLE_FIELDS } from "@helpdesk/shared";
 import { Select } from "@/components/ui/select";
+import { TICKET_SORT_CONTROLS_TEXT } from "@/lib/constants/text/tickets.text";
 import type { TicketSortControlsProps } from "./ticket-sort-controls.types";
-
-const SORT_FIELD_LABELS: Record<(typeof TICKET_SORTABLE_FIELDS)[number], string> = {
-  createdAt: "Created",
-  updatedAt: "Updated",
-  priority: "Priority",
-  status: "Status",
-};
 
 export function TicketSortControls({
   sortBy,
@@ -18,7 +12,7 @@ export function TicketSortControls({
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="ticket-sort-by" className="text-sm text-text-secondary">
-        Sort
+        {TICKET_SORT_CONTROLS_TEXT.SORT_LABEL}
       </label>
       <Select
         id="ticket-sort-by"
@@ -28,19 +22,19 @@ export function TicketSortControls({
       >
         {TICKET_SORTABLE_FIELDS.map((field) => (
           <option key={field} value={field}>
-            {SORT_FIELD_LABELS[field]}
+            {TICKET_SORT_CONTROLS_TEXT.FIELD_LABELS[field]}
           </option>
         ))}
       </Select>
 
       <button
         type="button"
-        aria-label={sortOrder === "asc" ? "Sort ascending" : "Sort descending"}
+        aria-label={sortOrder === "asc" ? TICKET_SORT_CONTROLS_TEXT.SORT_ASCENDING_ARIA : TICKET_SORT_CONTROLS_TEXT.SORT_DESCENDING_ARIA}
         onClick={() => onSortOrderChange(sortOrder === "asc" ? "desc" : "asc")}
         className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text transition-colors hover:border-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-secondary"
       >
         <span aria-hidden="true">{sortOrder === "asc" ? "↑" : "↓"}</span>
-        {sortOrder === "asc" ? "Asc" : "Desc"}
+        {sortOrder === "asc" ? TICKET_SORT_CONTROLS_TEXT.ASC : TICKET_SORT_CONTROLS_TEXT.DESC}
       </button>
     </div>
   );

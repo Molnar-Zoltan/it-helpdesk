@@ -1,3 +1,4 @@
+import { API_ERROR_CODES } from '@helpdesk/shared';
 import { RateLimitedException } from '../../common/exceptions/rate-limited.exception';
 
 /**
@@ -8,7 +9,7 @@ import { RateLimitedException } from '../../common/exceptions/rate-limited.excep
 export class LoginRateLimitedException extends RateLimitedException {
   constructor(retryAfterSeconds: number) {
     super(
-      'LOGIN_RATE_LIMITED',
+      API_ERROR_CODES.LOGIN_RATE_LIMITED,
       'Too many login attempts. Please try again later.',
       retryAfterSeconds,
     );

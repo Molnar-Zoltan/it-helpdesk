@@ -102,7 +102,7 @@ npm run dev --workspace=frontend   # http://localhost:3000
 
 ### Seed data
 
-`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus nine sample tickets (all owned by the demo customer, assigned to the demo agent) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run:
+`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus twelve sample tickets (all owned by the demo customer, assigned to the demo agent) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run:
 
 | Role | Email | Password |
 |---|---|---|

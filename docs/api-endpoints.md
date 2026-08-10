@@ -204,8 +204,8 @@ Lists the authenticated user's own tickets, paginated and sortable.
   "data": [ /* array of Ticket objects, same shape as POST /tickets response */ ],
   "page": 1,
   "limit": 10,
-  "total": 9,
-  "totalPages": 1
+  "total": 12,
+  "totalPages": 2
 }
 ```
 **Errors**: `400` if `page`/`limit` are out of range or `sortBy`/`sortOrder` aren't recognized values.

@@ -31,4 +31,9 @@ export const TICKETS_ERRORS = {
   TICKET_NOT_CLOSED: 'Ticket is not closed',
   TICKET_CLOSED_CANNOT_MESSAGE:
     'Cannot post a message on a closed ticket. Reopen it first.',
+  TICKET_ALREADY_ASSIGNED:
+    'Ticket is already assigned to an agent; only an admin can reassign it',
+  CANNOT_ASSIGN_OTHER_AGENT:
+    'Agents can only self-assign; ask an admin to assign to someone else',
+  AGENT_NOT_FOUND: 'Assignee not found or is not an agent',
 } as const;

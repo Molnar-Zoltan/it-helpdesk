@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -15,6 +16,7 @@ import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { AssignTicketDto } from './dto/assign-ticket.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import type { PaginatedResult } from '@helpdesk/shared';
 
@@ -39,7 +41,7 @@ export class TicketsService {
 
   /**
    * Shared query/sort/paginate logic behind a `where` scope. Kept private
-   * for now — Step 7's agent queue is expected to call into this with an
+   * for now — Step 9's agent queue is expected to call into this with an
    * unscoped (or agent/status-scoped) `where` instead of `{ customerId }`.
    */
   private async paginateTickets(
@@ -122,11 +124,12 @@ export class TicketsService {
       throw new BadRequestException(TICKETS_ERRORS.TICKET_NOT_CLOSED);
     }
 
-    // Always resets to OPEN rather than IN_PROGRESS. Today no ticket can
-    // have an agentId set (assignment doesn't exist until Step 7), so OPEN
-    // is unambiguous. Once assignment ships, a ticket that already had an
-    // agent assigned before it was closed might arguably deserve to come
-    // back as IN_PROGRESS instead — revisit then.
+    // Always resets to OPEN rather than IN_PROGRESS, even now that
+    // assignment (Step 9.1) exists — a closed ticket keeps whatever
+    // agentId it had, so a reopen *could* arguably resume as IN_PROGRESS
+    // when an agent is still attached. Left as OPEN for now and tracked as
+    // a Step 9.5 follow-up rather than folded in here, to keep this patch
+    // scoped to reopen's existing behavior.
     //
     // closeReason/closedAt/closedBy are deliberately left untouched: they
     // stay as a historical record of the prior close rather than being
@@ -135,7 +138,7 @@ export class TicketsService {
     // reopenReason/reopenedAt/reopenedBy follow the same single-snapshot
     // pattern as the close fields — a repeat close/reopen cycle overwrites
     // the previous reopen record rather than preserving full history. See
-    // the optional TicketStatusChange-table upgrade noted for Step 7/8 if
+    // the optional TicketStatusChange-table upgrade noted for Step 9 if
     // that turns out to matter in practice.
     return this.prisma.ticket.update({
       where: { id },
@@ -145,6 +148,68 @@ export class TicketsService {
         reopenedAt: new Date(),
         reopenedBy: customerId,
       },
+    });
+  }
+
+  /**
+   * Ticket assignment (Step 9.1). Deliberately its own narrow endpoint,
+   * same reasoning as close/reopen: this only ever touches `agentId`, not
+   * `status` — an explicit agent-driven status transition (Step 9.2) is a
+   * separate action from claiming a ticket.
+   *
+   * Permission model:
+   *  - Unscoped lookup (not customer-scoped) since any AGENT/ADMIN is
+   *    allowed to see and act on any ticket here — unlike the customer
+   *    endpoints, there's no ownership check to enforce via 404.
+   *  - Any AGENT can self-assign an unassigned ticket (`agentId` omitted
+   *    from the body defaults to the caller). Claiming from the queue
+   *    shouldn't need a gatekeeper.
+   *  - Only ADMIN may name a *different* agent in the body, and only ADMIN
+   *    may reassign a ticket that already has an agent — taking a ticket
+   *    away from whoever has it is a supervisory action, not a self-serve
+   *    one. Failures here are 403, not 404: the ticket's existence isn't a
+   *    secret from an agent/admin the way it is from another customer.
+   */
+  async assignTicket(
+    ticketId: string,
+    callerId: string,
+    callerRole: Role,
+    dto: AssignTicketDto,
+  ): Promise<Ticket> {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+    if (!ticket) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    const targetAgentId = dto.agentId ?? callerId;
+
+    if (callerRole !== Role.ADMIN && targetAgentId !== callerId) {
+      throw new ForbiddenException(TICKETS_ERRORS.CANNOT_ASSIGN_OTHER_AGENT);
+    }
+
+    if (
+      ticket.agentId &&
+      ticket.agentId !== targetAgentId &&
+      callerRole !== Role.ADMIN
+    ) {
+      throw new ForbiddenException(TICKETS_ERRORS.TICKET_ALREADY_ASSIGNED);
+    }
+
+    const targetAgent = await this.prisma.user.findUnique({
+      where: { id: targetAgentId },
+    });
+    if (
+      !targetAgent ||
+      (targetAgent.role !== Role.AGENT && targetAgent.role !== Role.ADMIN)
+    ) {
+      throw new BadRequestException(TICKETS_ERRORS.AGENT_NOT_FOUND);
+    }
+
+    return this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { agentId: targetAgentId },
     });
   }
 
@@ -192,11 +257,11 @@ export class TicketsService {
   /**
    * Shared visibility check for both reading and writing a ticket's
    * message thread: the owning customer, or any AGENT/ADMIN. Agent-ticket
-   * assignment doesn't exist yet (Step 7), so this deliberately does NOT
+   * assignment now exists (Step 9.1), but this deliberately still does NOT
    * scope to a specific assigned agent — any agent can read/comment on any
-   * ticket for now. Revisit once assignment exists and narrow this to
-   * "assigned agent (or unassigned) + ADMIN", matching how findOneForUser
-   * will likely need to evolve for the agent queue. Same 404-not-403
+   * ticket for now. Narrowing this to "assigned agent (or unassigned) +
+   * ADMIN" is tracked as Step 9.4, done as its own patch rather than
+   * bundled with assignment itself. Same 404-not-403
    * pattern as the rest of this service: "doesn't exist" and "not yours"
    * look identical to the caller.
    *

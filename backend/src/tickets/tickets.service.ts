@@ -59,6 +59,40 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Shared visibility rule (Step 9.4) behind both findOneForUser and
+   * assertCanAccessMessages: the owning customer; the ticket's assigned
+   * agent, or any AGENT while it's still unassigned (so an agent can open
+   * an unclaimed ticket to decide whether to take it); or an ADMIN,
+   * unconditionally. This replaces the earlier "any AGENT/ADMIN" rule both
+   * of those methods used from 9.1 through the GET /tickets/:id fix —
+   * assignment has now had a full endpoint (9.1) and a queue to claim from
+   * (9.3), so an agent peeking into a ticket assigned to someone else no
+   * longer has a reason to.
+   *
+   * Deliberately NOT applied to findQueue: the queue is a browsing/index
+   * view an agent needs to see broadly (including other agents' tickets)
+   * to make sense of the board, understand load, or have an admin
+   * reassign — narrowing the *list* the same way as a single ticket's
+   * detail would make the queue useless for its actual purpose.
+   */
+  private canAccessTicket(
+    ticket: Ticket,
+    callerId: string,
+    role: Role,
+  ): boolean {
+    if (ticket.customerId === callerId) {
+      return true;
+    }
+    if (role === Role.ADMIN) {
+      return true;
+    }
+    return (
+      role === Role.AGENT &&
+      (ticket.agentId === callerId || ticket.agentId === null)
+    );
+  }
+
   async findAllForUser(customerId: string, query: FindTicketsQueryDto) {
     return this.paginateTickets({ customerId }, query);
   }
@@ -68,6 +102,12 @@ export class TicketsService {
    * structured for back in 4.1.4. Unscoped by default (no customerId, no
    * agentId), with optional status/priority/assignedTo filters layered on
    * top via the same `where` clause paginateTickets already accepts.
+   *
+   * Deliberately not scoped to the caller's own assigned tickets by
+   * default, even after canAccessTicket narrowed single-ticket visibility
+   * in Step 9.4 — the queue is what an agent uses to see the whole board
+   * (including other agents' load) and find unclaimed work, so it stays
+   * broad. Use `assignedTo=me` to see just your own.
    */
   async findQueue(
     callerId: string,
@@ -122,13 +162,11 @@ export class TicketsService {
   }
 
   /**
-   * Visibility: the owning customer, or any AGENT/ADMIN — same rule as
-   * assertCanAccessMessages, and the same baseline findQueue uses. Agents
-   * could already list tickets (queue) and act on them (assign, status),
-   * but this endpoint was still customer-only until now, which meant an
-   * agent could see a ticket in the queue yet not open its detail page.
-   * Narrowing this to "assigned agent (or unassigned) + ADMIN" is Step
-   * 9.4, alongside the same narrowing for messages.
+   * Visibility: see canAccessTicket. Agents could already list tickets
+   * (queue) and act on them (assign, status), but this endpoint was still
+   * unconditionally customer-only before the GET /tickets/:id fix, which
+   * meant an agent could see a ticket in the queue yet not open its detail
+   * page. Now narrowed alongside messages as of Step 9.4.
    */
   async findOneForUser(
     id: string,
@@ -137,13 +175,10 @@ export class TicketsService {
   ): Promise<Ticket> {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
 
-    const isOwningCustomer = ticket?.customerId === callerId;
-    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
-
     // Same exception, same message for "doesn't exist" and "not yours" —
     // a 403 or a differently-worded 404 would leak whether the ticket ID
     // exists at all.
-    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
+    if (!ticket || !this.canAccessTicket(ticket, callerId, role)) {
       throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
     }
 
@@ -396,14 +431,10 @@ export class TicketsService {
 
   /**
    * Shared visibility check for both reading and writing a ticket's
-   * message thread: the owning customer, or any AGENT/ADMIN. Agent-ticket
-   * assignment now exists (Step 9.1), but this deliberately still does NOT
-   * scope to a specific assigned agent — any agent can read/comment on any
-   * ticket for now. Narrowing this to "assigned agent (or unassigned) +
-   * ADMIN" is tracked as Step 9.4, done as its own patch rather than
-   * bundled with assignment itself. Same 404-not-403
-   * pattern as the rest of this service: "doesn't exist" and "not yours"
-   * look identical to the caller.
+   * message thread — delegates to canAccessTicket (Step 9.4): the owning
+   * customer; the assigned agent (or any agent while unassigned); or an
+   * ADMIN. Same 404-not-403 pattern as the rest of this service: "doesn't
+   * exist" and "not yours" look identical to the caller.
    *
    * Returns the ticket (rather than just throwing/void) so addMessage can
    * inspect its status for the closed-ticket guard above without a second
@@ -418,10 +449,7 @@ export class TicketsService {
       where: { id: ticketId },
     });
 
-    const isOwningCustomer = ticket?.customerId === userId;
-    const isAgentOrAdmin = role === Role.AGENT || role === Role.ADMIN;
-
-    if (!ticket || !(isOwningCustomer || isAgentOrAdmin)) {
+    if (!ticket || !this.canAccessTicket(ticket, userId, role)) {
       throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
     }
 

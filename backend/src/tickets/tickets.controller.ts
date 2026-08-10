@@ -19,6 +19,7 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { AssignTicketDto } from './dto/assign-ticket.dto';
+import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto';
 import { TicketCreateRateLimitGuard } from './guards/ticket-create-rate-limit.guard';
 import { TicketMessageRateLimitGuard } from './guards/ticket-message-rate-limit.guard';
 import type { AuthenticatedRequest } from '../common/types/authenticated-request.type';
@@ -75,6 +76,22 @@ export class TicketsController {
     @Body() dto: AssignTicketDto,
   ) {
     return this.ticketsService.assignTicket(
+      id,
+      req.user.userId,
+      req.user.role as Role,
+      dto,
+    );
+  }
+
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT, Role.ADMIN)
+  updateStatus(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateTicketStatusDto,
+  ) {
+    return this.ticketsService.updateTicketStatus(
       id,
       req.user.userId,
       req.user.role as Role,

@@ -17,12 +17,35 @@ import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { AssignTicketDto } from './dto/assign-ticket.dto';
+import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
 import type { PaginatedResult } from '@helpdesk/shared';
 
 @Injectable()
 export class TicketsService {
   constructor(private prisma: PrismaService) {}
+
+  // Which statuses an agent/admin may move a ticket to, keyed by its
+  // current status. Deliberately excludes self-transitions (e.g.
+  // IN_PROGRESS -> IN_PROGRESS) so a repeat call with the same target
+  // status is rejected outright rather than silently re-writing the row —
+  // same reasoning as assignTicket's no-op short-circuit, just enforced by
+  // the map instead of an extra check. CLOSED has no outgoing transitions
+  // here: reopening a closed ticket stays customer-only, via the existing
+  // PATCH /tickets/:id/reopen.
+  private static readonly ALLOWED_AGENT_STATUS_TRANSITIONS: Record<
+    TicketStatus,
+    TicketStatus[]
+  > = {
+    [TicketStatus.OPEN]: [TicketStatus.IN_PROGRESS, TicketStatus.CLOSED],
+    [TicketStatus.IN_PROGRESS]: [
+      TicketStatus.OPEN,
+      TicketStatus.RESOLVED,
+      TicketStatus.CLOSED,
+    ],
+    [TicketStatus.RESOLVED]: [TicketStatus.IN_PROGRESS, TicketStatus.CLOSED],
+    [TicketStatus.CLOSED]: [],
+  };
 
   async create(customerId: string, dto: CreateTicketDto) {
     return this.prisma.ticket.create({
@@ -221,6 +244,67 @@ export class TicketsService {
     return this.prisma.ticket.update({
       where: { id: ticketId },
       data: { agentId: targetAgentId },
+    });
+  }
+
+  /**
+   * Agent-driven status transitions (Step 9.2). Kept as its own endpoint,
+   * separate from assignTicket (9.1) and from the customer's narrow
+   * close/reopen endpoints — this is the general status-update route for
+   * OPEN/IN_PROGRESS/RESOLVED/agent-forced-CLOSED that close/reopen were
+   * deliberately never meant to be.
+   *
+   * Permission model mirrors assignTicket's "claim it before you can work
+   * it": only the ticket's assigned agent, or an ADMIN, may drive its
+   * status. An unassigned ticket has no agent to authorize, so only ADMIN
+   * can act on one directly (e.g. force-closing an obvious spam/duplicate
+   * ticket without assigning it to anyone first). Failures are 403, same
+   * reasoning as assignTicket: ticket existence isn't a secret from an
+   * agent/admin.
+   *
+   * Forcing a ticket to CLOSED reuses the same closeReason/closedAt/
+   * closedBy columns the customer close endpoint writes — one "closed"
+   * record regardless of who closed it, rather than a parallel set of
+   * agent-close fields.
+   */
+  async updateTicketStatus(
+    ticketId: string,
+    callerId: string,
+    callerRole: Role,
+    dto: UpdateTicketStatusDto,
+  ): Promise<Ticket> {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+    if (!ticket) {
+      throw new NotFoundException(TICKETS_ERRORS.TICKET_NOT_FOUND);
+    }
+
+    if (callerRole !== Role.ADMIN && ticket.agentId !== callerId) {
+      throw new ForbiddenException(TICKETS_ERRORS.TICKET_NOT_ASSIGNED_TO_YOU);
+    }
+
+    const allowedTargets =
+      TicketsService.ALLOWED_AGENT_STATUS_TRANSITIONS[ticket.status];
+    if (!allowedTargets.includes(dto.status)) {
+      throw new BadRequestException(TICKETS_ERRORS.INVALID_STATUS_TRANSITION);
+    }
+
+    if (dto.status === TicketStatus.CLOSED) {
+      return this.prisma.ticket.update({
+        where: { id: ticketId },
+        data: {
+          status: TicketStatus.CLOSED,
+          closeReason: dto.reason,
+          closedAt: new Date(),
+          closedBy: callerId,
+        },
+      });
+    }
+
+    return this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { status: dto.status },
     });
   }
 

@@ -36,4 +36,8 @@ export const TICKETS_ERRORS = {
   CANNOT_ASSIGN_OTHER_AGENT:
     'Agents can only self-assign; ask an admin to assign to someone else',
   AGENT_NOT_FOUND: 'Assignee not found or is not an agent',
+  INVALID_STATUS_TRANSITION:
+    'Cannot move a ticket from its current status to the requested one',
+  TICKET_NOT_ASSIGNED_TO_YOU:
+    'Only the assigned agent or an admin can update this ticket status',
 } as const;

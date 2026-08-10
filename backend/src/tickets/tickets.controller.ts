@@ -15,6 +15,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
+import { FindTicketQueueDto } from './dto/find-ticket-queue.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -42,6 +43,16 @@ export class TicketsController {
     @Query() query: FindTicketsQueryDto,
   ) {
     return this.ticketsService.findAllForUser(req.user.userId, query);
+  }
+
+  // Registered before ':id' deliberately — Nest/Express match routes in
+  // declaration order, and a static segment like 'queue' would otherwise
+  // be swallowed by the ':id' param route below it.
+  @Get('queue')
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT, Role.ADMIN)
+  queue(@Req() req: AuthenticatedRequest, @Query() query: FindTicketQueueDto) {
+    return this.ticketsService.findQueue(req.user.userId, query);
   }
 
   @Get(':id')

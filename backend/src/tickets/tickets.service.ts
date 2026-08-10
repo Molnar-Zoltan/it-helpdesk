@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindTicketsQueryDto } from './dto/find-tickets-query.dto';
+import { FindTicketQueueDto } from './dto/find-ticket-queue.dto';
 import { CloseTicketDto } from './dto/close-ticket.dto';
 import { ReopenTicketDto } from './dto/reopen-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -63,9 +64,37 @@ export class TicketsService {
   }
 
   /**
+   * Agent queue (Step 9.3) — the reuse paginateTickets was deliberately
+   * structured for back in 4.1.4. Unscoped by default (no customerId, no
+   * agentId), with optional status/priority/assignedTo filters layered on
+   * top via the same `where` clause paginateTickets already accepts.
+   */
+  async findQueue(
+    callerId: string,
+    query: FindTicketQueueDto,
+  ): Promise<PaginatedResult<Ticket>> {
+    const { status, priority, assignedTo, ...pagination } = query;
+
+    const where: Prisma.TicketWhereInput = {
+      ...(status && { status }),
+      ...(priority && { priority }),
+    };
+
+    if (assignedTo === 'me') {
+      where.agentId = callerId;
+    } else if (assignedTo === 'unassigned') {
+      where.agentId = null;
+    } else if (assignedTo) {
+      where.agentId = assignedTo;
+    }
+
+    return this.paginateTickets(where, pagination);
+  }
+
+  /**
    * Shared query/sort/paginate logic behind a `where` scope. Kept private
-   * for now — Step 9's agent queue is expected to call into this with an
-   * unscoped (or agent/status-scoped) `where` instead of `{ customerId }`.
+   * since both callers (findAllForUser's `{ customerId }` scope, and
+   * findQueue's unscoped/filtered one) live in this same class.
    */
   private async paginateTickets(
     where: Prisma.TicketWhereInput,

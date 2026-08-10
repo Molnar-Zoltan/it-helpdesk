@@ -8,6 +8,7 @@ import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TicketsModule } from './tickets/tickets.module';
     AuthModule,
     UsersModule,
     TicketsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

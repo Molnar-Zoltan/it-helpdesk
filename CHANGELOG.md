@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.9.0] - 2026-08-10
+
+### CI/CD
+
+- **demo-reset:** Schedule demo-reset every 48 hours
+
+### Documentation
+
+- **readme:** Update project documentation
+- Document Step 8.5 demo reset
+
+### Features
+
+- **admin:** Add demo-reset endpoint with shared-secret guard
+
 ## [0.8.0] - 2026-08-10
 
 ### Bug Fixes

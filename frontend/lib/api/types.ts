@@ -169,7 +169,10 @@ export interface CreateMessagePayload {
 /** Shape returned by both POST /tickets/:id/messages and
  * GET /tickets/:id/messages, per schema.prisma's Message model. senderId
  * is nullable (a deleted user's messages survive with senderId set to
- * null), so the UI can't assume every message has an identifiable sender. */
+ * null), so the UI can't assume every message has an identifiable sender.
+ * senderName is the sender's real "First Last" at read time (not stored on
+ * Message itself -- joined from User server-side), null exactly when
+ * senderId is null. */
 export interface MessageResponse {
   id: string;
   content: string;
@@ -177,4 +180,5 @@ export interface MessageResponse {
   createdAt: string;
   ticketId: string;
   senderId: string | null;
+  senderName: string | null;
 }

@@ -9,6 +9,7 @@ import {
   Ticket,
   TicketStatus,
   Role,
+  Message,
 } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -406,14 +407,17 @@ export class TicketsService {
       );
     }
 
-    return this.prisma.message.create({
+    const message = await this.prisma.message.create({
       data: {
         content: dto.content,
         ticketId,
         senderId: userId,
         isAiGenerated: false,
       },
+      include: { sender: { select: { firstName: true, lastName: true } } },
     });
+
+    return this.toMessageResponse(message);
   }
 
   async getMessages(ticketId: string, userId: string, role: Role) {
@@ -423,10 +427,42 @@ export class TicketsService {
     // ticket's thread should always work, only new writes are blocked.
     // Chronological (oldest first) — this is a conversation thread meant to
     // be read top-to-bottom, unlike the ticket list's newest-first default.
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       where: { ticketId },
       orderBy: { createdAt: 'asc' },
+      include: { sender: { select: { firstName: true, lastName: true } } },
     });
+
+    return messages.map((message) => this.toMessageResponse(message));
+  }
+
+  /**
+   * Flattens Prisma's nested `sender` relation into a plain `senderName`
+   * string, matching this service's existing flat-DTO response shape
+   * elsewhere (no other endpoint returns a nested object). `senderName` is
+   * null exactly when `senderId` is null: either the message is AI-
+   * generated (never had a sender), or the original sender's account was
+   * later deleted (GDPR anonymization nulls senderId — see schema.md's
+   * GDPR section) and content itself already reads as anonymized, so
+   * losing the name here is consistent, not a new gap.
+   *
+   * Added so the frontend can show the real sender across a ticket's
+   * thread instead of a generic "Support" label for anyone who isn't the
+   * viewer — that generic fallback only made sense back when this page
+   * was reachable solely by the ticket's owning customer, before Step 9.4
+   * opened it to agents/admins too (an agent viewing a customer's message
+   * was getting mislabeled "Support").
+   */
+  private toMessageResponse(
+    message: Message & {
+      sender: { firstName: string; lastName: string } | null;
+    },
+  ) {
+    const { sender, ...rest } = message;
+    return {
+      ...rest,
+      senderName: sender ? `${sender.firstName} ${sender.lastName}` : null,
+    };
   }
 
   /**

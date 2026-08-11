@@ -135,6 +135,22 @@ export interface TicketListQuery {
 /** GET /tickets response. */
 export type TicketListResponse = PaginatedResult<TicketResponse>;
 
+/** GET /tickets/queue query params, per FindTicketQueueDto — everything
+ * TicketListQuery already has, plus the agent-only filters. All three
+ * filters are optional and simply omitted from the request when unset,
+ * matching the backend's "no filter = every ticket" default. */
+export interface TicketQueueQuery extends TicketListQuery {
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  /** 'me' | 'unassigned' | a literal agent id, per FindTicketQueueDto. */
+  assignedTo?: string;
+}
+
+/** GET /tickets/queue response — same paginated shape as GET /tickets,
+ * kept as its own alias since the two endpoints' query params (and so
+ * their cache keys) already diverge. */
+export type TicketQueueResponse = PaginatedResult<TicketResponse>;
+
 /** PATCH /tickets/:id/close body. */
 export interface CloseTicketPayload {
   reason: string;

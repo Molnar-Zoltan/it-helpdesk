@@ -40,6 +40,22 @@ export function Header() {
             </Link>
           )}
 
+          {/*
+            Queue is agent/admin-only — a CUSTOMER navigating to the URL
+            directly still gets a friendly in-page message (see
+            TicketQueueView), this just keeps the nav itself from
+            advertising a link that role can't use.
+          */}
+          {profile &&
+            (profile.role === "AGENT" || profile.role === "ADMIN") && (
+              <Link
+                href={ROUTES.TICKET_QUEUE}
+                className="text-sm text-text-secondary transition-colors hover:text-text"
+              >
+                {HEADER_TEXT.NAV_QUEUE}
+              </Link>
+            )}
+
           {isLoading ? (
             <Spinner label={HEADER_TEXT.LOADING_ACCOUNT} />
           ) : profile ? (

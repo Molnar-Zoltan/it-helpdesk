@@ -2,6 +2,35 @@ import { SITE_NAME } from "./common.text";
 
 /** Copy for /tickets, /tickets/new, /tickets/[id], and their components. */
 
+export const TICKET_QUEUE_TEXT = {
+  META_TITLE: `Queue — ${SITE_NAME}`,
+  LOADING: "Loading queue",
+  HEADING: "Ticket queue",
+  SUBHEADING:
+    "Every ticket, across every customer — filter, sort, and open one to work it.",
+  NOT_AVAILABLE: "The queue is only available to agents and admins.",
+  NO_RESULTS: "No tickets match these filters.",
+} as const;
+
+export const TICKET_QUEUE_FILTERS_TEXT = {
+  STATUS_LABEL: "Status",
+  PRIORITY_LABEL: "Priority",
+  ASSIGNED_TO_LABEL: "Assigned to",
+  ALL_STATUSES: "All statuses",
+  ALL_PRIORITIES: "All priorities",
+  ALL_ASSIGNEES: "Everyone",
+  ME: "Me",
+  UNASSIGNED: "Unassigned",
+} as const;
+
+/** Assignment indicator shown on TicketRow, queue view only (see
+ * TicketRowProps.currentUserId). */
+export const TICKET_ROW_TEXT = {
+  UNASSIGNED: "Unassigned",
+  ASSIGNED_TO_YOU: "You",
+  ASSIGNED: "Assigned",
+} as const;
+
 export const TICKET_LIST_TEXT = {
   META_TITLE: `My tickets — ${SITE_NAME}`,
   LOADING: "Loading tickets",
@@ -61,7 +90,8 @@ export const NEW_TICKET_TEXT = {
   PRIORITY_LABEL: "Priority",
   SUBMIT: "Submit ticket",
   CANCEL: "Cancel",
-  charactersHint: (length: number, max: number) => `${length}/${max} characters`,
+  charactersHint: (length: number, max: number) =>
+    `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're creating tickets too quickly. Try again in ${countdown}.`,
 } as const;
@@ -83,7 +113,8 @@ export const TICKET_DETAIL_TEXT = {
 
 export const TICKET_CLOSE_MODAL_TEXT = {
   TITLE: "Close this ticket?",
-  DESCRIPTION: "Let us know why you're closing it. You can reopen it later if needed.",
+  DESCRIPTION:
+    "Let us know why you're closing it. You can reopen it later if needed.",
   REASON_LABEL: "Reason",
   REASON_PLACEHOLDER: "e.g. Resolved myself, no longer needed…",
   CONFIRM_LABEL: "Close ticket",
@@ -108,7 +139,8 @@ export const MESSAGE_COMPOSER_TEXT = {
   PLACEHOLDER: "Share an update or ask a question…",
   SUBMIT: "Send message",
   CLOSED_NOTICE: "This ticket is closed. Reopen it above to add a new message.",
-  charactersHint: (length: number, max: number) => `${length}/${max} characters`,
+  charactersHint: (length: number, max: number) =>
+    `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're sending messages too quickly. Try again in ${countdown}.`,
 } as const;

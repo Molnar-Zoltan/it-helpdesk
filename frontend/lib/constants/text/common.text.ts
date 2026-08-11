@@ -11,6 +11,7 @@ export const SITE_NAME = "IT Helpdesk";
 export const HEADER_TEXT = {
   LOGO: SITE_NAME,
   NAV_TICKETS: "Tickets",
+  NAV_QUEUE: "Queue",
   NAV_LOG_IN: "Log in",
   NAV_SIGN_UP: "Sign up",
   LOADING_ACCOUNT: "Loading account",

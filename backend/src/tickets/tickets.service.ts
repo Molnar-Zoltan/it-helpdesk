@@ -417,7 +417,7 @@ export class TicketsService {
       include: { sender: { select: { firstName: true, lastName: true } } },
     });
 
-    return this.toMessageResponse(message);
+    return this.toMessageResponse(message, role);
   }
 
   async getMessages(ticketId: string, userId: string, role: Role) {
@@ -433,7 +433,7 @@ export class TicketsService {
       include: { sender: { select: { firstName: true, lastName: true } } },
     });
 
-    return messages.map((message) => this.toMessageResponse(message));
+    return messages.map((message) => this.toMessageResponse(message, role));
   }
 
   /**
@@ -446,23 +446,30 @@ export class TicketsService {
    * GDPR section) and content itself already reads as anonymized, so
    * losing the name here is consistent, not a new gap.
    *
-   * Added so the frontend can show the real sender across a ticket's
-   * thread instead of a generic "Support" label for anyone who isn't the
-   * viewer — that generic fallback only made sense back when this page
-   * was reachable solely by the ticket's owning customer, before Step 9.4
-   * opened it to agents/admins too (an agent viewing a customer's message
-   * was getting mislabeled "Support").
+   * Takes the *viewer's* role, not the sender's, to decide how much of the
+   * name to reveal: a CUSTOMER sees only an agent's first name (matches
+   * common helpdesk convention — Zendesk/Freshdesk do the same — an
+   * agent's full legal name isn't something a customer needs to see, and
+   * exposing it to someone who may be upset about how their ticket went
+   * has little upside). An AGENT/ADMIN sees full names, since they need to
+   * identify the customer and any other agent unambiguously. A ticket only
+   * ever has one customer, so this only ever truncates an agent's name,
+   * never the customer's own.
    */
   private toMessageResponse(
     message: Message & {
       sender: { firstName: string; lastName: string } | null;
     },
+    viewerRole: Role,
   ) {
     const { sender, ...rest } = message;
-    return {
-      ...rest,
-      senderName: sender ? `${sender.firstName} ${sender.lastName}` : null,
-    };
+    const senderName = sender
+      ? viewerRole === Role.CUSTOMER
+        ? sender.firstName
+        : `${sender.firstName} ${sender.lastName}`
+      : null;
+
+    return { ...rest, senderName };
   }
 
   /**

@@ -170,9 +170,12 @@ export interface CreateMessagePayload {
  * GET /tickets/:id/messages, per schema.prisma's Message model. senderId
  * is nullable (a deleted user's messages survive with senderId set to
  * null), so the UI can't assume every message has an identifiable sender.
- * senderName is the sender's real "First Last" at read time (not stored on
+ * senderName is the sender's real name at read time (not stored on
  * Message itself -- joined from User server-side), null exactly when
- * senderId is null. */
+ * senderId is null. Its exact content depends on who's asking: a customer
+ * viewer gets only the agent's first name (an agent's full name is never
+ * sent to a customer); an agent/admin viewer gets the full "First Last"
+ * for anyone. See TicketsService.toMessageResponse. */
 export interface MessageResponse {
   id: string;
   content: string;

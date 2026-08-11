@@ -134,6 +134,25 @@ export const TICKET_STATUS_MODAL_TEXT = {
   CANCEL: "Cancel",
 } as const;
 
+/** Agent/admin-only controls on the ticket detail page (Step 9.6.2) --
+ * assignment (claim/reassign) and agent-driven status transitions. Hidden
+ * entirely from a CUSTOMER viewer. */
+export const TICKET_AGENT_CONTROLS_TEXT = {
+  HEADING: "Agent controls",
+  UNASSIGNED: "Unassigned",
+  ASSIGNED_TO_YOU: "Assigned to you",
+  ASSIGNED_TO_OTHER: "Assigned to another agent",
+  CLAIM_BUTTON: "Claim ticket",
+  REASSIGN_TO_ME_BUTTON: "Reassign to me",
+  ASSIGN_SUCCESS_TOAST: "Ticket assigned.",
+  STATUS_LABEL: "Move to",
+  STATUS_NO_TRANSITIONS: "This ticket is closed — no further status changes from here.",
+  REASON_LABEL: "Reason for closing",
+  REASON_PLACEHOLDER: "Why is this ticket being closed?",
+  UPDATE_STATUS_BUTTON: "Update status",
+  STATUS_SUCCESS_TOAST: "Status updated.",
+} as const;
+
 export const MESSAGE_COMPOSER_TEXT = {
   FIELD_LABEL: "Add a message",
   PLACEHOLDER: "Share an update or ask a question…",

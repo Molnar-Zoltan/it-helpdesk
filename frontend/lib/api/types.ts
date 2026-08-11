@@ -161,6 +161,22 @@ export interface ReopenTicketPayload {
   reason: string;
 }
 
+/** PATCH /tickets/:id/assign body, per AssignTicketDto. Omit `agentId` (or
+ * send `{}`) to self-assign — the calling AGENT/ADMIN claims the ticket.
+ * Only ADMIN may set this to a different agent's id. */
+export interface AssignTicketPayload {
+  agentId?: string;
+}
+
+/** PATCH /tickets/:id/status body, per UpdateTicketStatusDto. `reason` is
+ * only required (and only sent) when `status` is `CLOSED` — every other
+ * agent-driven transition carries no reason, same split the backend DTO
+ * enforces via @ValidateIf. */
+export interface UpdateTicketStatusPayload {
+  status: TicketStatus;
+  reason?: string;
+}
+
 /** POST /tickets/:id/messages body. */
 export interface CreateMessagePayload {
   content: string;

@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDate } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants/routes.constants";
 import { useTicket } from "@/lib/queries/use-ticket";
+import { useProfile } from "@/lib/queries/use-profile";
 import { useCloseTicket } from "@/lib/mutations/use-close-ticket";
 import { useReopenTicket } from "@/lib/mutations/use-reopen-ticket";
 import { closeTicketSchema, reopenTicketSchema } from "@/lib/validation/ticket-schemas";
@@ -21,6 +22,7 @@ import {
   TICKET_REOPEN_MODAL_TEXT,
 } from "@/lib/constants/text/tickets.text";
 import { TicketStatusModal } from "../ticket-status-modal";
+import { TicketAgentControls } from "../ticket-agent-controls";
 import { MessageThread } from "../message-thread";
 import { MessageComposer } from "../message-composer";
 import type { TicketDetailViewProps } from "./ticket-detail-view.types";
@@ -29,6 +31,10 @@ type StatusModal = "close" | "reopen" | null;
 
 export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   const ticketQuery = useTicket(ticketId);
+  // Only used to gate TicketAgentControls -- the page itself is reachable
+  // by a CUSTOMER viewing their own ticket, so this can't assume a
+  // logged-in AGENT/ADMIN the way TicketQueueView does for the whole page.
+  const { data: profile } = useProfile();
   const closeTicketMutation = useCloseTicket(ticketId);
   const reopenTicketMutation = useReopenTicket(ticketId);
   const [openModal, setOpenModal] = useState<StatusModal>(null);
@@ -125,6 +131,14 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
             </Alert>
           )}
         </div>
+      )}
+
+      {profile && (profile.role === "AGENT" || profile.role === "ADMIN") && (
+        <TicketAgentControls
+          ticket={ticket}
+          currentUserId={profile.id}
+          currentUserRole={profile.role}
+        />
       )}
 
       <Card>

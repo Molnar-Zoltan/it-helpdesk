@@ -12,7 +12,7 @@ import {
   TICKET_MESSAGE_CONTENT_MAX_LENGTH,
   containsEmoji,
 } from "@helpdesk/shared";
-import type { TicketPriority } from "@helpdesk/shared";
+import type { TicketPriority, TicketStatus } from "@helpdesk/shared";
 import { TICKET_VALIDATION_TEXT } from "@/lib/constants/text/validation.text";
 
 /**
@@ -71,6 +71,49 @@ export const reopenTicketSchema = z.object({
     .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.REASON_NO_EMOJI),
 });
 export type ReopenTicketFormValues = z.infer<typeof reopenTicketSchema>;
+
+export const AGENT_STATUS_TARGETS = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const satisfies readonly TicketStatus[];
+
+/**
+ * Backs TicketAgentControls' status-transition form. `reason` is only
+ * required when the chosen target is CLOSED -- mirrors
+ * UpdateTicketStatusDto's `@ValidateIf(status === CLOSED)` exactly,
+ * reusing the same close-reason bounds the backend DTO reuses (one
+ * "closed" record regardless of who closed it). Which *targets* are
+ * actually offered for a given current status is a separate, purely
+ * client-side display concern -- see AGENT_STATUS_TRANSITIONS in
+ * ticket-agent-controls.tsx.
+ */
+export const updateTicketStatusSchema = z
+  .object({
+    status: z.enum(AGENT_STATUS_TARGETS),
+    reason: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status !== "CLOSED") return;
+
+    const reason = data.reason ?? "";
+    if (reason.length < TICKET_CLOSE_REASON_MIN_LENGTH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: TICKET_VALIDATION_TEXT.closeReasonMinLength,
+      });
+    } else if (reason.length > TICKET_CLOSE_REASON_MAX_LENGTH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: TICKET_VALIDATION_TEXT.closeReasonMaxLength,
+      });
+    } else if (containsEmoji(reason)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: TICKET_VALIDATION_TEXT.REASON_NO_EMOJI,
+      });
+    }
+  });
+export type UpdateTicketStatusFormValues = z.infer<typeof updateTicketStatusSchema>;
 
 export const createMessageSchema = z.object({
   content: z

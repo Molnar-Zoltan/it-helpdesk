@@ -228,12 +228,14 @@ export class TicketsService {
       throw new BadRequestException(TICKETS_ERRORS.TICKET_NOT_CLOSED);
     }
 
-    // Always resets to OPEN rather than IN_PROGRESS, even now that
-    // assignment (Step 9.1) exists — a closed ticket keeps whatever
-    // agentId it had, so a reopen *could* arguably resume as IN_PROGRESS
-    // when an agent is still attached. Left as OPEN for now and tracked as
-    // a Step 9.5 follow-up rather than folded in here, to keep this patch
-    // scoped to reopen's existing behavior.
+    // Step 9.5: resume IN_PROGRESS if the ticket still has an agent
+    // attached, OPEN otherwise. A closed ticket keeps whatever agentId it
+    // had at close time (closing doesn't unassign), so if that agent is
+    // still on it, the ticket was actively being worked and reopening
+    // should put it back in that state rather than dropping it back to
+    // an unclaimed-looking OPEN the assigned agent would need to notice
+    // and re-transition themselves. An unassigned ticket has no one to
+    // resume work "in progress" for, so it goes to OPEN same as before.
     //
     // closeReason/closedAt/closedBy are deliberately left untouched: they
     // stay as a historical record of the prior close rather than being
@@ -247,7 +249,7 @@ export class TicketsService {
     return this.prisma.ticket.update({
       where: { id },
       data: {
-        status: TicketStatus.OPEN,
+        status: ticket.agentId ? TicketStatus.IN_PROGRESS : TicketStatus.OPEN,
         reopenReason: dto.reason,
         reopenedAt: new Date(),
         reopenedBy: customerId,

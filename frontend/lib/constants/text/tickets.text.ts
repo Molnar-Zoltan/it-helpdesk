@@ -157,9 +157,10 @@ export const TICKET_AGENT_CONTROLS_TEXT = {
   REASSIGN_TO_ME_BUTTON: "Reassign to me",
   ASSIGN_SUCCESS_TOAST: "Ticket assigned.",
   STATUS_LABEL: "Move to",
-  STATUS_NO_TRANSITIONS: "This ticket is closed — no further status changes from here.",
   REASON_LABEL: "Reason for closing",
   REASON_PLACEHOLDER: "Why is this ticket being closed?",
+  REOPEN_REASON_LABEL: "Reason for reopening",
+  REOPEN_REASON_PLACEHOLDER: "Why is this ticket being reopened?",
   UPDATE_STATUS_BUTTON: "Update status",
   STATUS_SUCCESS_TOAST: "Status updated.",
 } as const;

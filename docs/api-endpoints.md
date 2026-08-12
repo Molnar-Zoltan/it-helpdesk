@@ -227,7 +227,7 @@ Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — cu
 **Errors**: `400` `TICKET_ALREADY_CLOSED` if the ticket is already `CLOSED`, or validation errors on `reason` (missing, too short/long, or contains emoji); `404` if the ticket doesn't exist or isn't owned by the requester.
 
 ### `PATCH /tickets/:id/reopen`
-Customer-initiated reopen, with no time window. Valid only from `CLOSED`. Resets the ticket to `IN_PROGRESS` if it still has an `agentId` (closing doesn't unassign, so the previously-assigned agent picks back up where they left off), or `OPEN` if it's unassigned. The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
+Customer-initiated reopen, with no time window. Valid only from `CLOSED`. Resets the ticket to `IN_PROGRESS` if it still has an `agentId` (closing doesn't unassign, so the previously-assigned agent picks back up where they left off), or `OPEN` if it's unassigned. The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close. An agent/admin has a separate, parallel way to reopen a ticket without the customer's involvement — see [`PATCH /tickets/:id/status`](#patch-ticketsidstatus) below.
 
 **Body**
 ```json
@@ -247,14 +247,16 @@ Assigns an agent to a ticket, or self-assigns. Unscoped lookup — any `AGENT`/`
 **Errors**: `403` `CANNOT_ASSIGN_OTHER_AGENT` if a non-`ADMIN` names an `agentId` other than themselves; `403` `TICKET_ALREADY_ASSIGNED` if a non-`ADMIN` tries to claim a ticket already assigned to someone else; `400` `AGENT_NOT_FOUND` if `agentId` doesn't resolve to a user with role `AGENT` or `ADMIN`; `404` if the ticket doesn't exist.
 
 ### `PATCH /tickets/:id/status`
-Agent-driven status transition, separate from assignment and from the customer's narrow close/reopen endpoints. Only the ticket's assigned agent, or an `ADMIN`, may drive its status; an unassigned ticket can only be acted on by `ADMIN` (e.g. force-closing an obvious duplicate without assigning it first). Valid transitions are `OPEN ↔ IN_PROGRESS ↔ RESOLVED`, plus any of those three → `CLOSED`. Self-transitions (the same status as a target) are not in the allowed set, so a repeat call `400`s rather than silently rewriting the row. Moving to `CLOSED` reuses the same `closeReason`/`closedAt`/`closedBy` columns a customer-initiated close writes.
+Agent-driven status transition, separate from assignment and from the customer's `PATCH /tickets/:id/close`/`PATCH /tickets/:id/reopen` (both untouched — this is a parallel path, not a replacement). Only the ticket's assigned agent, or an `ADMIN`, may drive its status, including reopening it (closing doesn't clear `agentId`); an unassigned ticket can only be acted on by `ADMIN` (e.g. force-closing an obvious duplicate without assigning it first). Valid transitions are `OPEN ↔ IN_PROGRESS ↔ RESOLVED`, plus any of those three → `CLOSED`, plus `CLOSED → OPEN`/`CLOSED → IN_PROGRESS` (an agent reopening the ticket). Self-transitions (the same status as a target) are not in the allowed set, so a repeat call `400`s rather than silently rewriting the row. Moving *to* `CLOSED` reuses the same `closeReason`/`closedAt`/`closedBy` columns a customer-initiated close writes; moving *out of* `CLOSED` (a reopen) reuses `reopenReason`/`reopenedAt`/`reopenedBy`, the same columns `PATCH /tickets/:id/reopen` writes — so a ticket's close/reopen history looks the same regardless of who acted on it.
+
+A `reason` is required in both of those cases — closing and reopening — using the same length bounds (3–1000 chars) and emoji rule either way, though it fills a different column depending on direction. The requiredness check for reopening happens in `TicketsService`, not the DTO: the DTO only sees the target status, so a plain `OPEN`/`IN_PROGRESS` target looks identical whether it's an ordinary transition (no reason needed) or a reopen (reason required) until the ticket's current status is loaded.
 
 **Body**
 ```json
-{ "status": "OPEN | IN_PROGRESS | RESOLVED | CLOSED", "reason": "string (3-1000 chars, required only when status is CLOSED)" }
+{ "status": "OPEN | IN_PROGRESS | RESOLVED | CLOSED", "reason": "string (3-1000 chars, required when status is CLOSED, or when the ticket's current status is CLOSED)" }
 ```
 **Response** `200`: the updated Ticket object.
-**Errors**: `403` `TICKET_NOT_ASSIGNED_TO_YOU` if the caller isn't the assigned agent or an `ADMIN`; `400` `INVALID_STATUS_TRANSITION` if the target status isn't reachable from the ticket's current status; `400` on validation failure (`reason` missing/too short/too long/emoji when `status` is `CLOSED`); `404` if the ticket doesn't exist.
+**Errors**: `403` `TICKET_NOT_ASSIGNED_TO_YOU` if the caller isn't the assigned agent or an `ADMIN`; `400` `INVALID_STATUS_TRANSITION` if the target status isn't reachable from the ticket's current status; `400` on validation failure (`reason` missing/too short/too long/emoji, when `status` is `CLOSED` or when reopening); `404` if the ticket doesn't exist.
 
 ### `GET /tickets/queue`
 Lists tickets across all customers — the agent/admin browsing view, unscoped by default. `AGENT`/`ADMIN` only. Registered before `GET /tickets/:id` in the controller so it isn't swallowed by the `:id` param route.

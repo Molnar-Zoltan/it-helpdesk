@@ -10,6 +10,12 @@ import { StatusBadge } from "../status-badge";
 import { PriorityBadge } from "../priority-badge";
 import type { TicketRowProps } from "./ticket-row.types";
 
+// Shared across every row -- clicking a second blocked row (or the same
+// one again) should replace the existing toast in place, not stack a new
+// one. Sonner keys on `id`: calling toast.error() again with the same id
+// updates/re-times the existing toast instead of adding another.
+const BLOCKED_TOAST_ID = "ticket-row-blocked";
+
 export function TicketRow({ ticket, currentUserId, viewerRole }: TicketRowProps) {
   const showAssignment = currentUserId !== undefined;
   const isAssignedToMe = ticket.agentId === currentUserId;
@@ -26,7 +32,7 @@ export function TicketRow({ ticket, currentUserId, viewerRole }: TicketRowProps)
       onClick={(event) => {
         if (!isBlocked) return;
         event.preventDefault();
-        toast.error(TICKET_ROW_TEXT.NOT_ASSIGNED_TO_YOU_TOAST);
+        toast.error(TICKET_ROW_TEXT.NOT_ASSIGNED_TO_YOU_TOAST, { id: BLOCKED_TOAST_ID });
       }}
       className={cn(
         "flex flex-col gap-2 border-b border-border px-4 py-4 transition-colors last:border-b-0",

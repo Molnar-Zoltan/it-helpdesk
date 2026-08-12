@@ -21,7 +21,12 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { AssignTicketDto } from './dto/assign-ticket.dto';
 import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto';
 import { TICKETS_ERRORS } from '../common/constants/error-messages.constants';
-import type { PaginatedResult } from '@helpdesk/shared';
+import {
+  type PaginatedResult,
+  TICKET_REOPEN_REASON_MIN_LENGTH,
+  TICKET_REOPEN_REASON_MAX_LENGTH,
+  containsEmoji,
+} from '@helpdesk/shared';
 
 @Injectable()
 export class TicketsService {
@@ -32,9 +37,13 @@ export class TicketsService {
   // IN_PROGRESS -> IN_PROGRESS) so a repeat call with the same target
   // status is rejected outright rather than silently re-writing the row —
   // same reasoning as assignTicket's no-op short-circuit, just enforced by
-  // the map instead of an extra check. CLOSED has no outgoing transitions
-  // here: reopening a closed ticket stays customer-only, via the existing
-  // PATCH /tickets/:id/reopen.
+  // the map instead of an extra check. CLOSED's outgoing transitions
+  // (OPEN, IN_PROGRESS) are an agent-driven reopen, handled by this same
+  // endpoint rather than by PATCH /tickets/:id/reopen — that endpoint
+  // stays customer-only and untouched; this is a parallel path for an
+  // agent/admin who needs to reopen without the customer's involvement
+  // (see updateTicketStatus below for how it's distinguished from every
+  // other transition).
   private static readonly ALLOWED_AGENT_STATUS_TRANSITIONS: Record<
     TicketStatus,
     TicketStatus[]
@@ -46,7 +55,7 @@ export class TicketsService {
       TicketStatus.CLOSED,
     ],
     [TicketStatus.RESOLVED]: [TicketStatus.IN_PROGRESS, TicketStatus.CLOSED],
-    [TicketStatus.CLOSED]: [],
+    [TicketStatus.CLOSED]: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS],
   };
 
   async create(customerId: string, dto: CreateTicketDto) {
@@ -331,24 +340,38 @@ export class TicketsService {
   }
 
   /**
-   * Agent-driven status transitions (Step 9.2). Kept as its own endpoint,
-   * separate from assignTicket (9.1) and from the customer's narrow
-   * close/reopen endpoints — this is the general status-update route for
-   * OPEN/IN_PROGRESS/RESOLVED/agent-forced-CLOSED that close/reopen were
-   * deliberately never meant to be.
+   * Agent-driven status transitions (Step 9.2), plus agent-driven reopen
+   * (added afterward, once it became clear reopen shouldn't be
+   * customer-exclusive — e.g. an agent who closed a ticket by mistake, or
+   * needs to reactivate one a customer isn't available to reopen
+   * themselves). Kept as its own endpoint, separate from assignTicket
+   * (9.1) and from the customer's PATCH /tickets/:id/close and
+   * PATCH /tickets/:id/reopen — this is the general status-update route
+   * those two were deliberately never meant to be.
    *
    * Permission model mirrors assignTicket's "claim it before you can work
    * it": only the ticket's assigned agent, or an ADMIN, may drive its
-   * status. An unassigned ticket has no agent to authorize, so only ADMIN
+   * status — including reopening it, since closing a ticket doesn't clear
+   * agentId. An unassigned ticket has no agent to authorize, so only ADMIN
    * can act on one directly (e.g. force-closing an obvious spam/duplicate
    * ticket without assigning it to anyone first). Failures are 403, same
    * reasoning as assignTicket: ticket existence isn't a secret from an
    * agent/admin.
    *
-   * Forcing a ticket to CLOSED reuses the same closeReason/closedAt/
-   * closedBy columns the customer close endpoint writes — one "closed"
-   * record regardless of who closed it, rather than a parallel set of
-   * agent-close fields.
+   * Two of the four possible outcomes reuse the customer-facing columns
+   * rather than writing a parallel set of agent-specific ones, so a
+   * ticket's close/reopen history looks identical regardless of who
+   * acted:
+   * - Moving *to* CLOSED reuses closeReason/closedAt/closedBy — the same
+   *   columns the customer close endpoint writes.
+   * - Moving *out of* CLOSED (the ticket's current status is CLOSED, so
+   *   the target — always OPEN or IN_PROGRESS per the transition map —
+   *   is a reopen) reuses reopenReason/reopenedAt/reopenedBy — the same
+   *   columns the customer reopen endpoint writes. A reason is required
+   *   here exactly like it is for the customer-reopen and agent-close
+   *   cases; the DTO can't enforce that itself since it only sees the
+   *   target status, not the ticket's current one, so it's checked here
+   *   once the ticket is loaded.
    */
   async updateTicketStatus(
     ticketId: string,
@@ -381,6 +404,42 @@ export class TicketsService {
           closeReason: dto.reason,
           closedAt: new Date(),
           closedBy: callerId,
+        },
+      });
+    }
+
+    // Only remaining way to reach this point with ticket.status ===
+    // CLOSED is an agent-driven reopen — every other current status'
+    // allowed targets exclude CLOSED as a *source*, only as a
+    // destination (handled above). Reason is validated by hand here
+    // (required, length-bounded, no emoji) with the same
+    // TICKET_REOPEN_REASON_MIN/MAX_LENGTH bounds ReopenTicketDto enforces
+    // via decorators — this path can't use decorators for it, since
+    // whether a reason is even required depends on the ticket's current
+    // status, which only the service (not the DTO) has loaded.
+    if (ticket.status === TicketStatus.CLOSED) {
+      if (!dto.reason) {
+        throw new BadRequestException(TICKETS_ERRORS.REOPEN_REASON_REQUIRED);
+      }
+      if (
+        dto.reason.length < TICKET_REOPEN_REASON_MIN_LENGTH ||
+        dto.reason.length > TICKET_REOPEN_REASON_MAX_LENGTH
+      ) {
+        throw new BadRequestException(
+          `Reason must be between ${TICKET_REOPEN_REASON_MIN_LENGTH} and ${TICKET_REOPEN_REASON_MAX_LENGTH} characters`,
+        );
+      }
+      if (containsEmoji(dto.reason)) {
+        throw new BadRequestException('Reason cannot contain emoji');
+      }
+
+      return this.prisma.ticket.update({
+        where: { id: ticketId },
+        data: {
+          status: dto.status,
+          reopenReason: dto.reason,
+          reopenedAt: new Date(),
+          reopenedBy: callerId,
         },
       });
     }

@@ -40,4 +40,5 @@ export const TICKETS_ERRORS = {
     'Cannot move a ticket from its current status to the requested one',
   TICKET_NOT_ASSIGNED_TO_YOU:
     'Only the assigned agent or an admin can update this ticket status',
+  REOPEN_REASON_REQUIRED: 'A reason is required when reopening a ticket',
 } as const;

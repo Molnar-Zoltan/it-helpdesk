@@ -97,15 +97,24 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="text-2xl font-semibold text-text">{ticket.title}</h1>
 
-          {isClosed ? (
-            <Button variant="secondary" onClick={() => setOpenModal("reopen")}>
-              {TICKET_DETAIL_TEXT.REOPEN_BUTTON}
-            </Button>
-          ) : (
-            <Button variant="danger" onClick={() => setOpenModal("close")}>
-              {TICKET_DETAIL_TEXT.CLOSE_BUTTON}
-            </Button>
-          )}
+          {/* PATCH /tickets/:id/close and /reopen are both strictly
+              customer-only server-side (ticket.customerId !== customerId
+              -> 404), so this button must be hidden for AGENT/ADMIN, not
+              just left visible-but-broken. Closing is available to agents
+              through TicketAgentControls' CLOSED status transition
+              instead; reopen has no agent equivalent by design -- see
+              architecture.md#agent-dashboard-step-9 for why reopen stays
+              customer-only. */}
+          {!isAgentOrAdmin &&
+            (isClosed ? (
+              <Button variant="secondary" onClick={() => setOpenModal("reopen")}>
+                {TICKET_DETAIL_TEXT.REOPEN_BUTTON}
+              </Button>
+            ) : (
+              <Button variant="danger" onClick={() => setOpenModal("close")}>
+                {TICKET_DETAIL_TEXT.CLOSE_BUTTON}
+              </Button>
+            ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

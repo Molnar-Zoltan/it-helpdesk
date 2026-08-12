@@ -29,6 +29,7 @@ export const TICKET_ROW_TEXT = {
   UNASSIGNED: "Unassigned",
   ASSIGNED_TO_YOU: "You",
   ASSIGNED: "Assigned",
+  NOT_ASSIGNED_TO_YOU_TOAST: "This ticket is assigned to another agent.",
 } as const;
 
 export const TICKET_LIST_TEXT = {
@@ -40,6 +41,11 @@ export const TICKET_LIST_TEXT = {
   NO_RESULTS_ON_PAGE: "No tickets on this page.",
   NO_TICKETS_YET: "You haven't filed any tickets yet.",
   FILE_FIRST_TICKET: "File your first ticket",
+  // Mirrors TICKET_QUEUE_TEXT.NOT_AVAILABLE's role-mismatch pattern, just
+  // the other direction: this page is for filing/viewing your own
+  // tickets, which isn't a thing for an AGENT/ADMIN account (Step 9.6.3).
+  NOT_AVAILABLE: "This page is for your own tickets. Agents and admins use the queue instead.",
+  GO_TO_QUEUE: "Go to queue",
 } as const;
 
 export const TICKET_PAGINATION_TEXT = {
@@ -101,6 +107,11 @@ export const TICKET_DETAIL_TEXT = {
   LOADING: "Loading ticket",
   BACK_TO_TICKETS: "← Back to tickets",
   BACK_TO_TICKETS_SIMPLE: "Back to tickets",
+  // Shown instead of the two above when the viewer is an AGENT/ADMIN --
+  // they came from the queue (Step 9.6.1), not the customer-only /tickets
+  // list, which they no longer have access to (see NOT_AVAILABLE below).
+  BACK_TO_QUEUE: "← Back to queue",
+  BACK_TO_QUEUE_SIMPLE: "Back to queue",
   NOT_FOUND: "That ticket doesn't exist, or isn't yours.",
   REOPEN_BUTTON: "Reopen ticket",
   CLOSE_BUTTON: "Close ticket",

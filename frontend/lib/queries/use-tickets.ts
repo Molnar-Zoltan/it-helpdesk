@@ -15,7 +15,7 @@ function ticketsQueryKey(query: TicketListQuery) {
   return [...TICKETS_QUERY_KEY, query] as const;
 }
 
-export function useTickets(query: TicketListQuery) {
+export function useTickets(query: TicketListQuery, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ticketsQueryKey(query),
     queryFn: () =>
@@ -27,6 +27,10 @@ export function useTickets(query: TicketListQuery) {
           sortOrder: query.sortOrder,
         }).toString()}`,
       ),
+    // Lets TicketListView skip firing this for an AGENT/ADMIN (see its
+    // canViewList check) rather than firing it and discarding a
+    // guaranteed 403 -- same reasoning as useTicketQueue's `enabled`.
+    enabled: options?.enabled ?? true,
     // Keeps the previous page's data on screen (instead of a spinner)
     // while the next page loads -- pagination/sort changes should feel
     // like flipping a page, not a fresh loading state each time.

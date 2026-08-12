@@ -32,7 +32,8 @@ export class TicketsController {
   constructor(private ticketsService: TicketsService) {}
 
   @Post()
-  @UseGuards(TicketCreateRateLimitGuard)
+  @UseGuards(RolesGuard, TicketCreateRateLimitGuard)
+  @Roles(Role.CUSTOMER)
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateTicketDto) {
     return this.ticketsService.create(req.user.userId, dto);
   }

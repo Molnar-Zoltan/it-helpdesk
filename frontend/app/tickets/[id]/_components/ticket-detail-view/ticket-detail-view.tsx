@@ -31,10 +31,22 @@ type StatusModal = "close" | "reopen" | null;
 
 export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   const ticketQuery = useTicket(ticketId);
-  // Only used to gate TicketAgentControls -- the page itself is reachable
-  // by a CUSTOMER viewing their own ticket, so this can't assume a
-  // logged-in AGENT/ADMIN the way TicketQueueView does for the whole page.
+  // Used both to gate TicketAgentControls and to pick the right "back"
+  // link/label below -- the page itself is reachable by a CUSTOMER
+  // viewing their own ticket, so this can't assume a logged-in AGENT/ADMIN
+  // the way TicketQueueView does for the whole page.
   const { data: profile } = useProfile();
+  const isAgentOrAdmin = profile?.role === "AGENT" || profile?.role === "ADMIN";
+  // An AGENT/ADMIN always arrives here from the queue (Step 9.6.1) --
+  // /tickets is customer-only now (Step 9.6.3) -- so "back" should return
+  // there, not to a page that role no longer has access to.
+  const backHref = isAgentOrAdmin ? ROUTES.TICKET_QUEUE : ROUTES.TICKETS;
+  const backLabel = isAgentOrAdmin
+    ? TICKET_DETAIL_TEXT.BACK_TO_QUEUE
+    : TICKET_DETAIL_TEXT.BACK_TO_TICKETS;
+  const backLabelSimple = isAgentOrAdmin
+    ? TICKET_DETAIL_TEXT.BACK_TO_QUEUE_SIMPLE
+    : TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE;
   const closeTicketMutation = useCloseTicket(ticketId);
   const reopenTicketMutation = useReopenTicket(ticketId);
   const [openModal, setOpenModal] = useState<StatusModal>(null);
@@ -59,10 +71,10 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
           {isNotFound ? TICKET_DETAIL_TEXT.NOT_FOUND : ticketQuery.error.message}
         </p>
         <Link
-          href={ROUTES.TICKETS}
+          href={backHref}
           className="text-sm font-medium text-accent-done hover:underline"
         >
-          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE}
+          {backLabelSimple}
         </Link>
       </div>
     );
@@ -76,8 +88,8 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={ROUTES.TICKETS} className="text-sm text-text-secondary hover:underline">
-          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS}
+        <Link href={backHref} className="text-sm text-text-secondary hover:underline">
+          {backLabel}
         </Link>
       </div>
 
@@ -133,7 +145,7 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
         </div>
       )}
 
-      {profile && (profile.role === "AGENT" || profile.role === "ADMIN") && (
+      {profile && isAgentOrAdmin && (
         <TicketAgentControls
           ticket={ticket}
           currentUserId={profile.id}

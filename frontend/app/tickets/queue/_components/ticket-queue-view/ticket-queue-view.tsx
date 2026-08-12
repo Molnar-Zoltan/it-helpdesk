@@ -180,6 +180,7 @@ export function TicketQueueView() {
                   key={ticket.id}
                   ticket={ticket}
                   currentUserId={profile.id}
+                  viewerRole={profile.role}
                 />
               ))}
             </div>

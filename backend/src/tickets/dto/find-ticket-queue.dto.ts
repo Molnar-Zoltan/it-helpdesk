@@ -17,11 +17,11 @@ export class FindTicketQueueDto extends FindTicketsQueryDto {
   // -> no agentId filter at all, i.e. every ticket regardless of who (if
   // anyone) it's assigned to.
   //
-  // That "everyone sees everything by default" baseline intentionally
-  // matches assertCanAccessMessages' current visibility (any AGENT/ADMIN,
-  // not scoped to the assigned agent) — narrowing both together, once
-  // assignment has had time to settle, is tracked as Step 9.4 rather than
-  // done piecemeal here.
+  // That "everyone sees everything by default" baseline is deliberately
+  // NOT narrowed the way canAccessTicket (Step 9.4) narrowed single-ticket
+  // visibility — the queue is a browsing/index view an agent needs to see
+  // broadly to make sense of the board, so it stays unscoped unless the
+  // caller explicitly filters with assignedTo=me.
   @IsOptional()
   @IsString()
   assignedTo?: string;

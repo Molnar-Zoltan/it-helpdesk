@@ -162,10 +162,10 @@ The check (`UsersService.assertNotDemoAccount`) looks up the caller's `userId` a
 
 ## Tickets (`/tickets`)
 
-Manual ticket creation and self-service ticket management for customers. All routes require `Authorization: Bearer <accessToken>`. Unless noted otherwise, a ticket is only visible to the customer who filed it — any other user (including an agent, until Step 9's assignment model exists) gets a `404`, not a `403`, so requests can't be used to probe which ticket IDs exist.
+Manual ticket creation and self-service ticket management for customers, plus agent-facing assignment/status/queue routes (Step 9). All routes require `Authorization: Bearer <accessToken>`. The customer-facing routes (`POST /tickets`, `GET /tickets`, `GET /tickets/:id`, close, reopen, messages) return `404`, not `403`, when the requester can't access a ticket — this avoids leaking whether a given ticket ID exists. The agent-facing routes (`PATCH /tickets/:id/assign`, `PATCH /tickets/:id/status`) invert this deliberately: they return `403` on a permission failure, since ticket existence isn't a secret from an agent/admin who can already see it in the queue.
 
 ### `POST /tickets`
-Creates a new ticket. `customerId` is always derived from the access token — it can never be set via the request body. New tickets always start at `status: OPEN` with no `agentId` (assignment doesn't exist until Step 9).
+Creates a new ticket. `customerId` is always derived from the access token — it can never be set via the request body. New tickets always start at `status: OPEN` with no `agentId`. **`CUSTOMER`-only** (`@Roles(Role.CUSTOMER)`) — an `AGENT`/`ADMIN` calling this gets `403`. This is a deliberate simplification for now, not necessarily the most production-realistic pattern; see [architecture.md](architecture.md#agent-dashboard-step-9) for the reasoning and a possible future "assisted creation on behalf of a customer" feature.
 
 **Body**
 ```json
@@ -185,7 +185,7 @@ Creates a new ticket. `customerId` is always derived from the access token — i
   "agentId": null
 }
 ```
-**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content); `429` `TICKET_CREATE_RATE_LIMITED` if called again within 60 seconds of the last attempt — see [Ticket rate limiting](#ticket-rate-limiting) below.
+**Errors**: `400` on validation failure (title/description length, invalid priority, emoji content); `403` if the caller isn't a `CUSTOMER`; `429` `TICKET_CREATE_RATE_LIMITED` if called again within 60 seconds of the last attempt — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets`
 Lists the authenticated user's own tickets, paginated and sortable.
@@ -211,13 +211,13 @@ Lists the authenticated user's own tickets, paginated and sortable.
 **Errors**: `400` if `page`/`limit` are out of range or `sortBy`/`sortOrder` aren't recognized values.
 
 ### `GET /tickets/:id`
-Returns a single ticket owned by the authenticated user.
+Returns a single ticket. Visible to the owning customer; the ticket's assigned agent, or any `AGENT` while it's still unassigned; or `ADMIN`, unconditionally — see [`canAccessTicket`](architecture.md#agent-dashboard-step-9) in architecture.md.
 
 **Response** `200`: a single Ticket object, same shape as `POST /tickets`.
-**Errors**: `404` if the ticket doesn't exist or isn't owned by the requester.
+**Errors**: `404` if the ticket doesn't exist or the requester can't access it.
 
 ### `PATCH /tickets/:id/close`
-Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — customers can close a ticket at any of those stages, not just once it's `RESOLVED`. Always moves the ticket to `CLOSED`. This is a narrow, single-purpose endpoint, not a general status-update route; agent-driven status transitions are Step 9 territory.
+Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — customers can close a ticket at any of those stages, not just once it's `RESOLVED`. Always moves the ticket to `CLOSED`. This is a narrow, single-purpose endpoint, not a general status-update route; agent-driven status transitions have their own endpoint, [`PATCH /tickets/:id/status`](#patch-ticketsidstatus) below.
 
 **Body**
 ```json
@@ -227,7 +227,7 @@ Customer-initiated close. Valid from `OPEN`, `IN_PROGRESS`, or `RESOLVED` — cu
 **Errors**: `400` `TICKET_ALREADY_CLOSED` if the ticket is already `CLOSED`, or validation errors on `reason` (missing, too short/long, or contains emoji); `404` if the ticket doesn't exist or isn't owned by the requester.
 
 ### `PATCH /tickets/:id/reopen`
-Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always resets the ticket to `OPEN` (a ticket that already had an agent assigned before closing may arguably deserve `IN_PROGRESS` instead — revisit once Step 9 assignment exists). The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
+Customer-initiated reopen, with no time window. Valid only from `CLOSED`. Resets the ticket to `IN_PROGRESS` if it still has an `agentId` (closing doesn't unassign, so the previously-assigned agent picks back up where they left off), or `OPEN` if it's unassigned. The original `closeReason`/`closedAt`/`closedBy` are left untouched, as a historical record of the earlier close.
 
 **Body**
 ```json
@@ -236,8 +236,45 @@ Customer-initiated reopen, with no time window. Valid only from `CLOSED`; always
 **Response** `200`: the updated Ticket object, now including `reopenReason`, `reopenedAt`, `reopenedBy` (separate fields from the close ones, in case a ticket cycles through close/reopen more than once — the current schema keeps a single snapshot of each, not full history).
 **Errors**: `400` `TICKET_NOT_CLOSED` if the ticket isn't currently `CLOSED`, or validation errors on `reason`; `404` if the ticket doesn't exist or isn't owned by the requester.
 
+### `PATCH /tickets/:id/assign`
+Assigns an agent to a ticket, or self-assigns. Unscoped lookup — any `AGENT`/`ADMIN` can act on any ticket, not just their own; there's no ownership check to enforce via `404` here. Any `AGENT` can claim an unassigned ticket (omit `agentId` to self-assign). Only `ADMIN` may name a different agent in the body, or reassign a ticket that already has an agent. A repeat self-assign to the agent already on the ticket is a true no-op — returns the ticket unchanged rather than issuing a redundant write, so it can't be used to bump `updatedAt` and climb the queue's sort order.
+
+**Body** (optional; omit entirely to self-assign)
+```json
+{ "agentId": "string (optional — defaults to the caller)" }
+```
+**Response** `200`: the updated Ticket object.
+**Errors**: `403` `CANNOT_ASSIGN_OTHER_AGENT` if a non-`ADMIN` names an `agentId` other than themselves; `403` `TICKET_ALREADY_ASSIGNED` if a non-`ADMIN` tries to claim a ticket already assigned to someone else; `400` `AGENT_NOT_FOUND` if `agentId` doesn't resolve to a user with role `AGENT` or `ADMIN`; `404` if the ticket doesn't exist.
+
+### `PATCH /tickets/:id/status`
+Agent-driven status transition, separate from assignment and from the customer's narrow close/reopen endpoints. Only the ticket's assigned agent, or an `ADMIN`, may drive its status; an unassigned ticket can only be acted on by `ADMIN` (e.g. force-closing an obvious duplicate without assigning it first). Valid transitions are `OPEN ↔ IN_PROGRESS ↔ RESOLVED`, plus any of those three → `CLOSED`. Self-transitions (the same status as a target) are not in the allowed set, so a repeat call `400`s rather than silently rewriting the row. Moving to `CLOSED` reuses the same `closeReason`/`closedAt`/`closedBy` columns a customer-initiated close writes.
+
+**Body**
+```json
+{ "status": "OPEN | IN_PROGRESS | RESOLVED | CLOSED", "reason": "string (3-1000 chars, required only when status is CLOSED)" }
+```
+**Response** `200`: the updated Ticket object.
+**Errors**: `403` `TICKET_NOT_ASSIGNED_TO_YOU` if the caller isn't the assigned agent or an `ADMIN`; `400` `INVALID_STATUS_TRANSITION` if the target status isn't reachable from the ticket's current status; `400` on validation failure (`reason` missing/too short/too long/emoji when `status` is `CLOSED`); `404` if the ticket doesn't exist.
+
+### `GET /tickets/queue`
+Lists tickets across all customers — the agent/admin browsing view, unscoped by default. `AGENT`/`ADMIN` only. Registered before `GET /tickets/:id` in the controller so it isn't swallowed by the `:id` param route.
+
+**Query params**
+| Param | Default | Notes |
+|---|---|---|
+| `page` | `1` | 1-indexed |
+| `limit` | `10` | capped at `100` |
+| `sortBy` | `createdAt` | one of `createdAt`, `updatedAt`, `priority`, `status` |
+| `sortOrder` | `desc` | `asc` or `desc` |
+| `status` | — | optional, one of `OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED` |
+| `priority` | — | optional, one of `LOW`, `MEDIUM`, `HIGH`, `URGENT` |
+| `assignedTo` | — | optional — `me` (caller's own assigned tickets), `unassigned` (`agentId` is null), or a literal agent id. Omitted entirely means no `agentId` filter at all — every ticket regardless of assignment |
+
+**Response** `200`: same paginated shape as `GET /tickets`.
+**Errors**: `400` if `page`/`limit`/`sortBy`/`sortOrder`/`status`/`priority` are invalid; `403` if the caller isn't `AGENT`/`ADMIN`.
+
 ### `POST /tickets/:id/messages`
-Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visible to the ticket's owning customer, or to any user with role `AGENT`/`ADMIN` (not yet scoped to a specific *assigned* agent, since assignment doesn't exist until Step 9). `isAiGenerated` defaults to `false`; the AI chat path (Step 10) will write its own `Message` rows separately.
+Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visibility: same [`canAccessTicket`](architecture.md#agent-dashboard-step-9) rule as `GET /tickets/:id` — the owning customer; the ticket's assigned agent, or any `AGENT` while unassigned; or `ADMIN`, unconditionally. `isAiGenerated` defaults to `false`; the AI chat path (Step 10) will write its own `Message` rows separately.
 
 **Body**
 ```json
@@ -251,20 +288,23 @@ Adds a message to a ticket's thread. `senderId` is always derived from the acces
   "isAiGenerated": false,
   "createdAt": "ISO 8601 datetime",
   "ticketId": "string",
-  "senderId": "string"
+  "senderId": "string",
+  "senderName": "string | null"
 }
 ```
+`senderName` is `null` exactly when `senderId` is `null` (AI-generated, or the sender's account was since GDPR-anonymized). It's role-scoped to the *viewer*, not fixed per message: a `CUSTOMER` viewer sees only an agent's first name (matching common helpdesk convention of not exposing an agent's full name to end users); an `AGENT`/`ADMIN` viewer sees full names for anyone on the thread. A ticket only ever has one customer, so this never truncates the customer's own name.
+
 **Errors**: `400` on validation failure (missing/oversized/emoji content); `400` `TICKET_CLOSED_CANNOT_MESSAGE` if the ticket's `status` is `CLOSED` (reading the existing thread via `GET /tickets/:id/messages` is unaffected — reopen the ticket to post again); `404` if the ticket doesn't exist or the requester can't access it; `429` `TICKET_MESSAGE_RATE_LIMITED` if called again on the same ticket within 10 seconds of the last message — see [Ticket rate limiting](#ticket-rate-limiting) below.
 
 ### `GET /tickets/:id/messages`
 Returns the full message thread for a ticket, ordered oldest-first (`createdAt` ascending — the reverse of `GET /tickets`' newest-first default, since a conversation reads chronologically). Same visibility rule as `POST /tickets/:id/messages`.
 
-**Response** `200`: array of Message objects, same shape as the `POST /tickets/:id/messages` response.
+**Response** `200`: array of Message objects, same shape as the `POST /tickets/:id/messages` response (including the viewer-scoped `senderName`).
 **Errors**: `404` if the ticket doesn't exist or the requester can't access it.
 
 ### Ticket rate limiting
 
-`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The three seeded demo accounts' credentials are published in this README for the live demo, and registration is open with no CAPTCHA until Step 7 lands, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
+`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The three seeded demo accounts' credentials are published in the README for the live demo, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
 
 | Endpoint | Cooldown | Key | Error |
 |---|---|---|---|
@@ -316,15 +356,18 @@ The access token payload is `{ sub: userId, role, refreshTokenId, iat, exp }` �
 
 | Endpoint | Auth required | Visible to |
 |---|---|---|
-| `POST /tickets` | Yes | n/a — creates a ticket owned by the caller |
+| `POST /tickets` | Yes | `CUSTOMER` only — creates a ticket owned by the caller |
 | `GET /tickets` | Yes | Caller's own tickets only |
-| `GET /tickets/:id` | Yes | Owning customer only (`404` otherwise) |
+| `GET /tickets/:id` | Yes | Owning customer; assigned agent or any `AGENT` if unassigned; `ADMIN` (`404` otherwise) |
 | `PATCH /tickets/:id/close` | Yes | Owning customer only (`404` otherwise) |
 | `PATCH /tickets/:id/reopen` | Yes | Owning customer only (`404` otherwise) |
-| `POST /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
-| `GET /tickets/:id/messages` | Yes | Owning customer, or any `AGENT`/`ADMIN` |
+| `POST /tickets/:id/messages` | Yes | Same as `GET /tickets/:id` (`404` otherwise) |
+| `GET /tickets/:id/messages` | Yes | Same as `GET /tickets/:id` (`404` otherwise) |
+| `PATCH /tickets/:id/assign` | Yes | Any `AGENT`/`ADMIN` (`403` on a permission failure — see below) |
+| `PATCH /tickets/:id/status` | Yes | Assigned agent or `ADMIN`; unassigned tickets are `ADMIN`-only (`403` otherwise) |
+| `GET /tickets/queue` | Yes | `AGENT`/`ADMIN` only |
 
-Every ticket route returns `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner.
+The customer-facing routes return `404`, not `403`, when the requester isn't allowed to see the ticket — this avoids leaking whether a given ticket ID exists to someone who isn't its owner. `PATCH /tickets/:id/assign` and `PATCH /tickets/:id/status` invert this: they return `403` on a permission failure, since ticket existence isn't a secret from an agent/admin who can already see it in the queue.
 
 `POST /tickets/:id/messages` additionally 400s on a `CLOSED` ticket (`TICKET_CLOSED_CANNOT_MESSAGE`) — a closed ticket isn't being actively worked, so new messages are blocked until it's reopened. `GET /tickets/:id/messages` has no such restriction; the existing thread stays readable regardless of status.
 

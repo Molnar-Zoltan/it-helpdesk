@@ -219,7 +219,6 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
 
 Also on the list, not yet slotted into a numbered step:
 
-- **Ticket lifecycle** — `OPEN → IN_PROGRESS → RESOLVED → CLOSED`, surfaced in the dashboard.
 - **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
 - **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.
 - **Unit/integration tests** for backend services and controllers

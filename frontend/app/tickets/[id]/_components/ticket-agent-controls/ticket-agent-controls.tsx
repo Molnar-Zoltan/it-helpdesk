@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -70,6 +70,29 @@ export function TicketAgentControls({ ticket, currentUserId, currentUserRole }: 
   // itself requires a reason for.
   const reasonRequired = selectedStatus === "CLOSED" || isReopening;
 
+  // Resets the form whenever ticket.status actually changes -- i.e. once
+  // the query invalidated by a successful mutation has refetched and this
+  // component has re-rendered with the new ticket, which is also exactly
+  // when `allowedTargets` above recomputes and the <select>'s rendered
+  // options change. Resetting anywhere else (e.g. immediately after
+  // mutateAsync resolves, before that refetch lands) sets a status value
+  // against options that haven't updated yet, and vice versa -- whichever
+  // side moves first, the two end up mismatched and the native <select>
+  // falls back to displaying something that matches neither the tracked
+  // form state nor the ticket's real status. Tying the reset to the same
+  // prop change that drives the options is the only way to guarantee
+  // they're always in sync.
+  //
+  // Deliberately NOT depending on `reset`/`allowedTargets`: `reset` is
+  // stable across renders per react-hook-form's own contract, and
+  // `allowedTargets` is fully determined by `ticket.status` (same lookup
+  // table every render), so re-running this effect only when the status
+  // itself changes is correct, not a missed dependency.
+  useEffect(() => {
+    reset({ status: allowedTargets[0] ?? "OPEN", reason: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.status]);
+
   const handleClaim = async () => {
     try {
       await assignMutation.mutateAsync({});
@@ -88,7 +111,13 @@ export function TicketAgentControls({ ticket, currentUserId, currentUserRole }: 
         ...(reasonRequired && { reason: values.reason }),
       });
       toast.success(TICKET_AGENT_CONTROLS_TEXT.STATUS_SUCCESS_TOAST);
-      reset({ status: allowedTargets[0] ?? "OPEN", reason: "" });
+      // No reset() here -- the effect above handles it once ticket.status
+      // actually changes, keeping the reset value and the <select>'s
+      // options perfectly in sync. Resetting eagerly here, before that
+      // happens, is exactly what caused the original bug (and what made
+      // an earlier attempted fix worse, not better: it picked the right
+      // *value* but against the still-stale *options list*, which is just
+      // the same mismatch from the other direction).
     } catch {
       // Surfaced below via statusMutation.error (e.g. someone else already
       // moved the ticket, so the transition no longer applies).

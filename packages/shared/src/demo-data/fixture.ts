@@ -31,6 +31,17 @@ export const DEMO_USERS: DemoUser[] = [
     role: 'AGENT',
   },
   {
+    // Second agent seat, deliberately left with no tickets assigned to it —
+    // exists so the agent queue (Step 9) has more than one agent to pick
+    // from when reassigning, without disturbing the existing demo-agent
+    // storyline on tickets 1-12.
+    id: 'demo-agent-2',
+    email: 'agent2@helpdesk.dev',
+    firstName: 'Jordan',
+    lastName: 'Rivera',
+    role: 'AGENT',
+  },
+  {
     id: 'demo-customer',
     email: 'customer@helpdesk.dev',
     firstName: 'Casey',
@@ -67,7 +78,9 @@ export const DEMO_TICKETS: DemoTicket[] = [
     status: 'OPEN',
     priority: 'HIGH',
     customerId: CUSTOMER_ID,
-    agentId: AGENT_ID,
+    // Unassigned: one of the 4 newest tickets, deliberately left in the
+    // queue for an agent to pick up rather than pre-assigned.
+    agentId: null,
     createdDaysAgo: 2,
   },
   {
@@ -78,7 +91,8 @@ export const DEMO_TICKETS: DemoTicket[] = [
     status: 'OPEN',
     priority: 'URGENT',
     customerId: CUSTOMER_ID,
-    agentId: AGENT_ID,
+    // Unassigned: newest ticket in the fixture, left in the queue.
+    agentId: null,
     createdDaysAgo: 1,
   },
   {
@@ -89,7 +103,8 @@ export const DEMO_TICKETS: DemoTicket[] = [
     status: 'OPEN',
     priority: 'LOW',
     customerId: CUSTOMER_ID,
-    agentId: AGENT_ID,
+    // Unassigned: one of the 4 newest tickets, left in the queue.
+    agentId: null,
     createdDaysAgo: 3,
   },
   {
@@ -171,7 +186,8 @@ export const DEMO_TICKETS: DemoTicket[] = [
     status: 'OPEN',
     priority: 'MEDIUM',
     customerId: CUSTOMER_ID,
-    agentId: AGENT_ID,
+    // Unassigned: one of the 4 newest tickets, left in the queue.
+    agentId: null,
     createdDaysAgo: 4,
   },
   {

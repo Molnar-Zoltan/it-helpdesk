@@ -12,12 +12,21 @@ export const metadata: Metadata = {
 };
 
 // The customer account is the one worth pointing a first-time visitor at
-// — it's the role this app's ticket-filing flow is actually built for
-// (see docs/api-endpoints.md's ticket access rules). Pulled from
+// first — it's the role this app's ticket-filing flow is actually built
+// for (see docs/api-endpoints.md's ticket access rules). Both agent
+// accounts are called out separately underneath, now that Step 9's agent
+// dashboard (queue, assignment, status transitions) is live and worth
+// surfacing too — a second agent seat exists specifically so reassignment
+// has a real second agent to pick from, so it's worth naming here rather
+// than leaving a visitor to wonder who else they could hand a ticket to.
+// Admin is deliberately left out; its only real capability beyond agent is
+// reassigning a ticket to someone *else*, which isn't worth its own
+// credential line on a login page. All of these are pulled from
 // @helpdesk/shared's DEMO_USERS/DEMO_PASSWORD (the same fixture seed.ts
 // inserts from) rather than hardcoded here, so this hint can't drift from
 // what the seed data actually creates.
 const demoCustomer = DEMO_USERS.find((user) => user.role === "CUSTOMER")!;
+const demoAgents = DEMO_USERS.filter((user) => user.role === "AGENT");
 
 export default function LoginPage() {
   return (
@@ -42,10 +51,22 @@ export default function LoginPage() {
         </Link>
       </p>
 
-      <p className="text-center text-xs text-text-muted">
-        {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>{demoCustomer.email}</code> /{" "}
-        <code>{DEMO_PASSWORD}</code>.
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-center text-xs text-text-muted">
+          {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>{demoCustomer.email}</code> /{" "}
+          <code>{DEMO_PASSWORD}</code>.
+        </p>
+        <p className="text-center text-xs text-text-muted">
+          {LOGIN_TEXT.DEMO_HINT_AGENT_PREFIX}{" "}
+          {demoAgents.map((agent, index) => (
+            <span key={agent.id}>
+              <code>{agent.email}</code>
+              {index < demoAgents.length - 1 ? " or " : ""}
+            </span>
+          ))}{" "}
+          / <code>{DEMO_PASSWORD}</code>.
+        </p>
+      </div>
     </div>
   );
 }

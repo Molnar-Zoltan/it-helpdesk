@@ -111,7 +111,7 @@ Updates first and/or last name. No `currentPassword` required — name isn't a s
 ```json
 { "id": "string", "firstName": "string", "lastName": "string" }
 ```
-**Errors**: `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+**Errors**: `403` if this is one of the four seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `PATCH /users/me/password`
 Changes the account password. Requires `currentPassword` for re-verification. Revokes every other active refresh token, keeping the session that made the request alive.
@@ -124,7 +124,7 @@ Changes the account password. Requires `currentPassword` for re-verification. Re
 ```json
 { "message": "Password updated" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the four seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `PATCH /users/me/email`
 Changes the account email. Requires `currentPassword`. Revokes every other active refresh token, keeping the current session alive — same pattern as password change.
@@ -137,7 +137,7 @@ Changes the account email. Requires `currentPassword`. Revokes every other activ
 ```json
 { "message": "Email updated" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match; `400` if `newEmail` is the same as the account's current email; `409` if `newEmail` is already registered to another account; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+**Errors**: `401` if `currentPassword` doesn't match; `400` if `newEmail` is the same as the account's current email; `409` if `newEmail` is already registered to another account; `403` if this is one of the four seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### `DELETE /users/me`
 Deletes the account. Requires `currentPassword`. This is a hard delete of the `User` row and all their `RefreshToken`s (cascade); their `Ticket`/`Message` history is **not** deleted — see [schema.md](schema.md#gdpr--account-deletion-behavior) for the anonymization behavior.
@@ -150,11 +150,11 @@ Deletes the account. Requires `currentPassword`. This is a hard delete of the `U
 ```json
 { "message": "Account deleted" }
 ```
-**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the three seeded demo accounts — see [Demo account protection](#demo-account-protection).
+**Errors**: `401` if `currentPassword` doesn't match; `403` if this is one of the four seeded demo accounts — see [Demo account protection](#demo-account-protection).
 
 ### Demo account protection
 
-All four self-service mutations above (`PATCH /users/me`, `PATCH /users/me/password`, `PATCH /users/me/email`, `DELETE /users/me`) are blocked with `403 DEMO_ACCOUNT_PROTECTED` when called against one of the three seeded demo accounts (`admin@helpdesk.dev`, `agent@helpdesk.dev`, `customer@helpdesk.dev`). These credentials are published in the README for the live demo, so without this guard anyone could lock out, rename, or delete a shared account that every visitor relies on.
+All four self-service mutations above (`PATCH /users/me`, `PATCH /users/me/password`, `PATCH /users/me/email`, `DELETE /users/me`) are blocked with `403 DEMO_ACCOUNT_PROTECTED` when called against one of the four seeded demo accounts (`admin@helpdesk.dev`, `agent@helpdesk.dev`, `agent2@helpdesk.dev`, `customer@helpdesk.dev`). These credentials are published in the README for the live demo, so without this guard anyone could lock out, rename, or delete a shared account that every visitor relies on.
 
 The check (`UsersService.assertNotDemoAccount`) looks up the caller's `userId` against `DEMO_USER_IDS`, exported from [`packages/shared`](../packages/shared/src/demo-data/fixture.ts) — the same fixture `seed.ts` inserts from — rather than a DB column or an ID-naming convention. This keeps demo-account identity in one place and lets the frontend reuse the identical `isDemoUserId()` check to disable the relevant UI without a round-trip. It runs before password re-verification, so it applies even when the (publicly known) demo password is supplied correctly.
 
@@ -306,7 +306,7 @@ Returns the full message thread for a ticket, ordered oldest-first (`createdAt` 
 
 ### Ticket rate limiting
 
-`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The three seeded demo accounts' credentials are published in the README for the live demo, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
+`POST /tickets` and `POST /tickets/:id/messages` are both guarded by anti-spam cooldowns (`TicketCreateRateLimitGuard`/`TicketMessageRateLimitGuard`) — unlike login's rate limit, this isn't brute-force protection, it's protection against DB-growth abuse. The four seeded demo accounts' credentials are published in the README for the live demo, so either path is an easy way to flood the shared demo (or any account) with junk data otherwise.
 
 | Endpoint | Cooldown | Key | Error |
 |---|---|---|---|
@@ -324,7 +324,7 @@ Messages are scoped per-ticket (not just per-user) so a cooldown on one thread d
 ## Admin (`/admin`)
 
 ### `POST /admin/demo-reset`
-Wipes every row in the database and re-seeds the demo fixture (the same three demo accounts and sample tickets/messages `seed.ts` produces). Called on a ~48-hour schedule by `.github/workflows/demo-reset.yml`, so the public live demo doesn't accumulate ticket/message data or real signups indefinitely.
+Wipes every row in the database and re-seeds the demo fixture (the same four demo accounts and sample tickets/messages `seed.ts` produces). Called on a ~48-hour schedule by `.github/workflows/demo-reset.yml`, so the public live demo doesn't accumulate ticket/message data or real signups indefinitely.
 
 **Auth**: not `Authorization: Bearer <accessToken>` — a required `x-admin-reset-secret` header, checked against the `ADMIN_RESET_SECRET` env var by `DemoResetGuard`. Deliberately not JWT/role-based: the only intended caller is the scheduled workflow, not a logged-in user, so even the demo `ADMIN` account's own access token grants no access here.
 
@@ -332,7 +332,7 @@ Wipes every row in the database and re-seeds the demo fixture (the same three de
 
 **Response** `200`
 ```json
-{ "message": "Demo data reset", "users": 3, "tickets": 9, "messages": 1 }
+{ "message": "Demo data reset", "users": 4, "tickets": 12, "messages": 1 }
 ```
 **Errors**: `401` if the header is missing, wrong, or `ADMIN_RESET_SECRET` isn't configured on the server.
 

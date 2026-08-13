@@ -14,7 +14,7 @@ export const LOGIN_RATE_LIMIT_WINDOW_SECONDS =
 /**
  * Anti-spam cooldowns on ticket creation and messages — not brute-force
  * protection like login's limit above, but protection against DB-growth
- * abuse. The three seeded demo accounts' credentials are published in the
+ * abuse. The four seeded demo accounts' credentials are published in the
  * README for the live demo, and registration is open with no CAPTCHA until
  * Step 7 lands, so either path is an easy way to flood the shared demo (or
  * any account) with junk data otherwise.

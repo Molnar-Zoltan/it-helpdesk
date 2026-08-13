@@ -3,7 +3,7 @@
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 
 **Live demo:** https://it-helpdesk.zoltanmolnar.eu/ — deployed and under active development, not the final release. Auth, account self-service, manual ticket filing (create, list, view, close, reopen, message), and the agent dashboard (assignment, status transitions, queue) are all live end to end; the AI chat path isn't built yet — see [Roadmap](#roadmap).  
-**Demo login:** `admin@helpdesk.dev` / `agent@helpdesk.dev` / `customer@helpdesk.dev` — password `password123` for all three (see [seed data](#seed-data))
+**Demo login:** `admin@helpdesk.dev` / `agent@helpdesk.dev` / `agent2@helpdesk.dev` / `customer@helpdesk.dev` — password `password123` for all four (see [seed data](#seed-data))
 
 **API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) 
 
@@ -103,12 +103,13 @@ npm run dev --workspace=frontend   # http://localhost:3000
 
 ### Seed data
 
-`backend/prisma/seed.ts` creates three demo accounts — an admin, an agent, and a customer — plus twelve sample tickets (all owned by the demo customer, assigned to the demo agent) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run:
+`backend/prisma/seed.ts` creates four demo accounts — an admin, two agents, and a customer — plus twelve sample tickets (all owned by the demo customer) spanning every `TicketStatus` and a mix of priorities, with one message on the first ticket, so the app isn't empty on first run. The four newest tickets are left unassigned (queue material for the agent dashboard); the rest are assigned to `agent@helpdesk.dev`. The second agent, `agent2@helpdesk.dev`, starts with no tickets assigned to it, so there's a real second option when reassigning from the queue:
 
 | Role | Email | Password |
 |---|---|---|
 | Admin | `admin@helpdesk.dev` | `password123` |
 | Agent | `agent@helpdesk.dev` | `password123` |
+| Agent | `agent2@helpdesk.dev` | `password123` |
 | Customer | `customer@helpdesk.dev` | `password123` |
 
 ### Git hooks
@@ -209,6 +210,7 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
      - 9.6.2 ✅ `TicketAgentControls` on `/tickets/:id` — role-gated assign ("Claim ticket" / "Reassign to me" for admins) and status-transition controls, wired to new `useAssignTicket`/`useUpdateTicketStatus` mutation hooks. Status options come from a small hand-synced client-side copy of the backend's transition map (display-only — nothing in `@helpdesk/shared` to import, since it's a private service detail). A reason field appears only when `CLOSED` is selected.
      - 9.6.3 ✅ Follow-up fixes from review: `POST /tickets` became `CUSTOMER`-only server-side (previously any authenticated role could file a ticket as themselves), mirrored on the frontend by gating the Tickets link, `/tickets`, and `/tickets/new` to customers, with a friendly in-page message for an agent/admin who navigates there directly — flagged as a simplification, since real helpdesk products commonly let an agent file on a customer's behalf instead. Ticket detail's back-link is now role-aware (`Back to queue` vs `Back to tickets`). `TicketRow` blocks navigation into another agent's assigned ticket with a deduplicated toast (`sonner`'s `id` option) instead of letting it 404 through.
    - 9.7 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md` updated for all of Step 9; home page's build-plan panel now shows "Agent dashboard" as done.
+   - 9.8 ✅ Seed data follow-up — added a second demo agent (`agent2@helpdesk.dev`, no tickets pre-assigned) so the queue's reassign flow has a real second agent to pick from, and unassigned the 4 newest of the 12 demo tickets so the queue isn't 100% pre-claimed on a fresh seed.
 
 **Left**
 

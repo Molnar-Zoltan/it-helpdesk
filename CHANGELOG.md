@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.10.0] - 2026-08-13
+
+### Bug Fixes
+
+- **tickets:** Make repeat self-assign a no-op (Step 9.1 follow-up)
+- **tickets:** Let AGENT/ADMIN view any ticket via GET /tickets/:id
+- **tickets:** Show real sender name on messages, not a generic label
+- **tickets:** Only show agent's first name to a customer viewer
+- **tickets:** Customer-only ticket filing + queue UX fixes (9.6.3)
+- **tickets:** Dedupe the not-assigned-to-you toast on TicketRow
+- **admin:** Remove stale IpUsage reference from demo reset
+- **tickets:** Hide customer-only close/reopen button from agents
+- **tickets:** Reset agent status form via effect on ticket.status, not on submit
+
+### Documentation
+
+- Bump AI_DAILY_LIMIT placeholder from 10 to 25
+- **tickets:** Fix stale Step 9.4 comment in FindTicketQueueDto
+- Step 9 docs pass -- README, api-endpoints.md, architecture.md, home page
+
+### Features
+
+- **demo-data:** Add 3 more seed tickets (9 -> 12) for pagination demo
+- **tickets:** Add PATCH /tickets/:id/assign (Step 9.1)
+- **tickets:** Add PATCH /tickets/:id/status (Step 9.2)
+- **tickets:** Add GET /tickets/queue (Step 9.3)
+- **tickets:** Narrow ticket/message visibility to assigned agent (Step 9.4)
+- **frontend:** Add agent queue view at /tickets/queue (Step 9.6.1)
+- **frontend:** Agent assign + status controls on ticket detail (9.6.2)
+- **tickets:** Reopen resumes IN_PROGRESS when ticket still has an agent (Step 9.5)
+- **tickets:** Allow agent-driven reopen via PATCH /tickets/:id/status
+- **tickets:** Frontend support for agent-driven reopen, plus docs
+
 ## [0.9.0] - 2026-08-10
 
 ### CI/CD

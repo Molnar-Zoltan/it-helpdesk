@@ -12,12 +12,18 @@ export const metadata: Metadata = {
 };
 
 // The customer account is the one worth pointing a first-time visitor at
-// — it's the role this app's ticket-filing flow is actually built for
-// (see docs/api-endpoints.md's ticket access rules). Pulled from
-// @helpdesk/shared's DEMO_USERS/DEMO_PASSWORD (the same fixture seed.ts
-// inserts from) rather than hardcoded here, so this hint can't drift from
-// what the seed data actually creates.
+// first — it's the role this app's ticket-filing flow is actually built
+// for (see docs/api-endpoints.md's ticket access rules). The agent
+// account is called out separately underneath, now that Step 9's agent
+// dashboard (queue, assignment, status transitions) is live and worth
+// surfacing too — admin is deliberately left out here; its only real
+// capability beyond agent is reassigning a ticket to someone *else*,
+// which isn't worth a third credential line on a login page. Both are
+// pulled from @helpdesk/shared's DEMO_USERS/DEMO_PASSWORD (the same
+// fixture seed.ts inserts from) rather than hardcoded here, so this hint
+// can't drift from what the seed data actually creates.
 const demoCustomer = DEMO_USERS.find((user) => user.role === "CUSTOMER")!;
+const demoAgent = DEMO_USERS.find((user) => user.role === "AGENT")!;
 
 export default function LoginPage() {
   return (
@@ -42,10 +48,16 @@ export default function LoginPage() {
         </Link>
       </p>
 
-      <p className="text-center text-xs text-text-muted">
-        {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>{demoCustomer.email}</code> /{" "}
-        <code>{DEMO_PASSWORD}</code>.
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-center text-xs text-text-muted">
+          {LOGIN_TEXT.DEMO_HINT_PREFIX} <code>{demoCustomer.email}</code> /{" "}
+          <code>{DEMO_PASSWORD}</code>.
+        </p>
+        <p className="text-center text-xs text-text-muted">
+          {LOGIN_TEXT.DEMO_HINT_AGENT_PREFIX} <code>{demoAgent.email}</code> /{" "}
+          <code>{DEMO_PASSWORD}</code>.
+        </p>
+      </div>
     </div>
   );
 }

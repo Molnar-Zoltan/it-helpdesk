@@ -11,6 +11,7 @@ export const LOGIN_TEXT = {
   NO_ACCOUNT_PROMPT: "Don't have an account?",
   CREATE_ONE_LINK: "Create one",
   DEMO_HINT_PREFIX: "Trying the demo? Use",
+  DEMO_HINT_AGENT_PREFIX: "Want to see the agent dashboard? Use",
   EMAIL_LABEL: "Email",
   PASSWORD_LABEL: "Password",
   SUBMIT: "Log in",

@@ -18,8 +18,8 @@ export class AdminService {
    * demo over time; a partial reset would leave those behind.
    *
    * Deletion order respects FK direction (children before parents):
-   * Message/RefreshToken/AiUsage/IpUsage all reference User or Ticket,
-   * which must go last. seedDemoData (Step 4.1.9's extracted insert logic)
+   * Message/RefreshToken/AiUsage all reference User or Ticket, which must
+   * go last. seedDemoData (Step 4.1.9's extracted insert logic)
    * then re-creates the same fixture `prisma db seed` does, so a reset
    * produces byte-identical state to a fresh seed.
    */
@@ -29,7 +29,6 @@ export class AdminService {
       await tx.ticket.deleteMany();
       await tx.refreshToken.deleteMany();
       await tx.aiUsage.deleteMany();
-      await tx.ipUsage.deleteMany();
       await tx.user.deleteMany();
 
       return seedDemoData(tx);

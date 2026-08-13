@@ -163,6 +163,42 @@ export const DEMO_TICKETS: DemoTicket[] = [
     closedDaysAgo: 19,
     closedBy: CUSTOMER_ID,
   },
+  {
+    id: 'demo-ticket-10',
+    title: 'Slow WiFi in conference room B',
+    description:
+      'Video calls keep dropping in the second-floor conference room.',
+    status: 'OPEN',
+    priority: 'MEDIUM',
+    customerId: CUSTOMER_ID,
+    agentId: AGENT_ID,
+    createdDaysAgo: 4,
+  },
+  {
+    id: 'demo-ticket-11',
+    title: 'Request for second monitor',
+    description:
+      'Would like a second monitor added to the desk setup for multitasking.',
+    status: 'IN_PROGRESS',
+    priority: 'LOW',
+    customerId: CUSTOMER_ID,
+    agentId: AGENT_ID,
+    createdDaysAgo: 8,
+  },
+  {
+    id: 'demo-ticket-12',
+    title: 'IDE license installation request',
+    description:
+      'Need the team-standard IDE installed and licensed on a new machine.',
+    status: 'CLOSED',
+    priority: 'HIGH',
+    customerId: CUSTOMER_ID,
+    agentId: AGENT_ID,
+    createdDaysAgo: 30,
+    closeReason: 'Installed and license activated, confirmed by requester.',
+    closedDaysAgo: 29,
+    closedBy: CUSTOMER_ID,
+  },
 ];
 
 export const DEMO_MESSAGES: DemoMessage[] = [

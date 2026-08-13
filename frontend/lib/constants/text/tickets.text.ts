@@ -2,6 +2,36 @@ import { SITE_NAME } from "./common.text";
 
 /** Copy for /tickets, /tickets/new, /tickets/[id], and their components. */
 
+export const TICKET_QUEUE_TEXT = {
+  META_TITLE: `Queue — ${SITE_NAME}`,
+  LOADING: "Loading queue",
+  HEADING: "Ticket queue",
+  SUBHEADING:
+    "Every ticket, across every customer — filter, sort, and open one to work it.",
+  NOT_AVAILABLE: "The queue is only available to agents and admins.",
+  NO_RESULTS: "No tickets match these filters.",
+} as const;
+
+export const TICKET_QUEUE_FILTERS_TEXT = {
+  STATUS_LABEL: "Status",
+  PRIORITY_LABEL: "Priority",
+  ASSIGNED_TO_LABEL: "Assigned to",
+  ALL_STATUSES: "All statuses",
+  ALL_PRIORITIES: "All priorities",
+  ALL_ASSIGNEES: "Everyone",
+  ME: "Me",
+  UNASSIGNED: "Unassigned",
+} as const;
+
+/** Assignment indicator shown on TicketRow, queue view only (see
+ * TicketRowProps.currentUserId). */
+export const TICKET_ROW_TEXT = {
+  UNASSIGNED: "Unassigned",
+  ASSIGNED_TO_YOU: "You",
+  ASSIGNED: "Assigned",
+  NOT_ASSIGNED_TO_YOU_TOAST: "This ticket is assigned to another agent.",
+} as const;
+
 export const TICKET_LIST_TEXT = {
   META_TITLE: `My tickets — ${SITE_NAME}`,
   LOADING: "Loading tickets",
@@ -11,6 +41,11 @@ export const TICKET_LIST_TEXT = {
   NO_RESULTS_ON_PAGE: "No tickets on this page.",
   NO_TICKETS_YET: "You haven't filed any tickets yet.",
   FILE_FIRST_TICKET: "File your first ticket",
+  // Mirrors TICKET_QUEUE_TEXT.NOT_AVAILABLE's role-mismatch pattern, just
+  // the other direction: this page is for filing/viewing your own
+  // tickets, which isn't a thing for an AGENT/ADMIN account (Step 9.6.3).
+  NOT_AVAILABLE: "This page is for your own tickets. Agents and admins use the queue instead.",
+  GO_TO_QUEUE: "Go to queue",
 } as const;
 
 export const TICKET_PAGINATION_TEXT = {
@@ -61,7 +96,8 @@ export const NEW_TICKET_TEXT = {
   PRIORITY_LABEL: "Priority",
   SUBMIT: "Submit ticket",
   CANCEL: "Cancel",
-  charactersHint: (length: number, max: number) => `${length}/${max} characters`,
+  charactersHint: (length: number, max: number) =>
+    `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're creating tickets too quickly. Try again in ${countdown}.`,
 } as const;
@@ -71,6 +107,11 @@ export const TICKET_DETAIL_TEXT = {
   LOADING: "Loading ticket",
   BACK_TO_TICKETS: "← Back to tickets",
   BACK_TO_TICKETS_SIMPLE: "Back to tickets",
+  // Shown instead of the two above when the viewer is an AGENT/ADMIN --
+  // they came from the queue (Step 9.6.1), not the customer-only /tickets
+  // list, which they no longer have access to (see NOT_AVAILABLE below).
+  BACK_TO_QUEUE: "← Back to queue",
+  BACK_TO_QUEUE_SIMPLE: "Back to queue",
   NOT_FOUND: "That ticket doesn't exist, or isn't yours.",
   REOPEN_BUTTON: "Reopen ticket",
   CLOSE_BUTTON: "Close ticket",
@@ -83,7 +124,8 @@ export const TICKET_DETAIL_TEXT = {
 
 export const TICKET_CLOSE_MODAL_TEXT = {
   TITLE: "Close this ticket?",
-  DESCRIPTION: "Let us know why you're closing it. You can reopen it later if needed.",
+  DESCRIPTION:
+    "Let us know why you're closing it. You can reopen it later if needed.",
   REASON_LABEL: "Reason",
   REASON_PLACEHOLDER: "e.g. Resolved myself, no longer needed…",
   CONFIRM_LABEL: "Close ticket",
@@ -103,12 +145,33 @@ export const TICKET_STATUS_MODAL_TEXT = {
   CANCEL: "Cancel",
 } as const;
 
+/** Agent/admin-only controls on the ticket detail page (Step 9.6.2) --
+ * assignment (claim/reassign) and agent-driven status transitions. Hidden
+ * entirely from a CUSTOMER viewer. */
+export const TICKET_AGENT_CONTROLS_TEXT = {
+  HEADING: "Agent controls",
+  UNASSIGNED: "Unassigned",
+  ASSIGNED_TO_YOU: "Assigned to you",
+  ASSIGNED_TO_OTHER: "Assigned to another agent",
+  CLAIM_BUTTON: "Claim ticket",
+  REASSIGN_TO_ME_BUTTON: "Reassign to me",
+  ASSIGN_SUCCESS_TOAST: "Ticket assigned.",
+  STATUS_LABEL: "Move to",
+  REASON_LABEL: "Reason for closing",
+  REASON_PLACEHOLDER: "Why is this ticket being closed?",
+  REOPEN_REASON_LABEL: "Reason for reopening",
+  REOPEN_REASON_PLACEHOLDER: "Why is this ticket being reopened?",
+  UPDATE_STATUS_BUTTON: "Update status",
+  STATUS_SUCCESS_TOAST: "Status updated.",
+} as const;
+
 export const MESSAGE_COMPOSER_TEXT = {
   FIELD_LABEL: "Add a message",
   PLACEHOLDER: "Share an update or ask a question…",
   SUBMIT: "Send message",
   CLOSED_NOTICE: "This ticket is closed. Reopen it above to add a new message.",
-  charactersHint: (length: number, max: number) => `${length}/${max} characters`,
+  charactersHint: (length: number, max: number) =>
+    `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're sending messages too quickly. Try again in ${countdown}.`,
 } as const;

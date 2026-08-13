@@ -2,8 +2,9 @@ import type { MessageResponse } from "@/lib/api/types";
 
 export interface MessageItemProps {
   message: MessageResponse;
-  /** senderId === the viewer's own id -- the only sender identity the UI
-   * can meaningfully show today, since only a ticket's owning customer can
-   * view this page (Step 9's agent dashboard is a separate surface). */
+  /** senderId === the viewer's own id. Still the right thing to check for
+   * "is this my message" (senderName alone can't distinguish "you" from
+   * someone else sharing your exact name), even though senderName now
+   * covers everyone else's label — see message-item.tsx's senderLabel. */
   isOwnMessage: boolean;
 }

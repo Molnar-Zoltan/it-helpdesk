@@ -11,6 +11,7 @@ export const SITE_NAME = "IT Helpdesk";
 export const HEADER_TEXT = {
   LOGO: SITE_NAME,
   NAV_TICKETS: "Tickets",
+  NAV_QUEUE: "Queue",
   NAV_LOG_IN: "Log in",
   NAV_SIGN_UP: "Sign up",
   LOADING_ACCOUNT: "Loading account",
@@ -55,7 +56,7 @@ export const HOME_TEXT = {
     "It's under active development: auth, account management, " +
     "manual ticket filing, rate limiting, and CAPTCHA-protected " +
     "registration are all live below, deploying automatically on every " +
-    "push — the agent dashboard and AI chat path are being built next.",
+    "push — the AI chat path is being built next.",
   BUILD_PLAN_LABEL: "Build plan",
   GITHUB_CTA: "Follow progress on GitHub",
   AUTH_BANNER_LOG_IN: "Log in",
@@ -81,6 +82,6 @@ export const HOME_BUILD_PLAN_PHASES: Phase[] = [
   { label: "Rate limiting", status: "done" },
   { label: "Cloudflare Turnstile captcha", status: "done" },
   { label: "CI/CD pipeline", status: "done" },
-  { label: "Agent dashboard", status: "planned" },
+  { label: "Agent dashboard", status: "done" },
   { label: "AI chat ticket path", status: "planned" },
 ];

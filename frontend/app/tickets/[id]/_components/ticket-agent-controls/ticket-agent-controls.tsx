@@ -1,0 +1,205 @@
+"use client";
+
+import { useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import type { TicketStatus } from "@helpdesk/shared";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { TextArea } from "@/components/ui/textarea";
+import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { useAssignTicket } from "@/lib/mutations/use-assign-ticket";
+import { useUpdateTicketStatus } from "@/lib/mutations/use-update-ticket-status";
+import { createUpdateTicketStatusSchema, type UpdateTicketStatusFormValues } from "@/lib/validation/ticket-schemas";
+import { TICKET_AGENT_CONTROLS_TEXT, TICKET_STATUS_LABELS } from "@/lib/constants/text/tickets.text";
+import type { TicketAgentControlsProps } from "./ticket-agent-controls.types";
+
+/**
+ * Client-side mirror of TicketsService.ALLOWED_AGENT_STATUS_TRANSITIONS
+ * (backend/src/tickets/tickets.service.ts) -- display-only, so the form
+ * only ever offers a target the backend would actually accept. The
+ * backend remains the sole enforcer; this just avoids showing a
+ * transition that would 400. Keep in sync by hand if that map changes --
+ * there's nothing in @helpdesk/shared to import here, since this map is a
+ * private implementation detail of the service, not a validation rule
+ * either side needs to agree on bit-for-bit.
+ */
+const AGENT_STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
+  OPEN: ["IN_PROGRESS", "CLOSED"],
+  IN_PROGRESS: ["OPEN", "RESOLVED", "CLOSED"],
+  RESOLVED: ["IN_PROGRESS", "CLOSED"],
+  CLOSED: ["OPEN", "IN_PROGRESS"],
+};
+
+export function TicketAgentControls({ ticket, currentUserId, currentUserRole }: TicketAgentControlsProps) {
+  const assignMutation = useAssignTicket(ticket.id);
+  const statusMutation = useUpdateTicketStatus(ticket.id);
+
+  const isAssignedToMe = ticket.agentId === currentUserId;
+  const isUnassigned = ticket.agentId === null;
+  const canDriveStatus = currentUserRole === "ADMIN" || isAssignedToMe;
+  const allowedTargets = AGENT_STATUS_TRANSITIONS[ticket.status];
+  // A ticket only ever reaches this branch already CLOSED via the reopen
+  // path — allowedTargets for CLOSED is [OPEN, IN_PROGRESS], neither of
+  // which is itself CLOSED, so isReopening and "the CLOSED option is
+  // selected" (handled by selectedStatus below) are mutually exclusive.
+  const isReopening = ticket.status === "CLOSED";
+
+  // Rebuilt whenever the ticket's status changes so the reason-requiredness
+  // rule (see createUpdateTicketStatusSchema) always reflects the ticket
+  // this form is currently attached to, not a stale prior status.
+  const statusSchema = useMemo(() => createUpdateTicketStatusSchema(ticket.status), [ticket.status]);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<UpdateTicketStatusFormValues>({
+    resolver: zodResolver(statusSchema),
+    defaultValues: { status: allowedTargets[0] ?? "OPEN", reason: "" },
+  });
+  const selectedStatus = watch("status");
+  // A reason is collected whenever the target is CLOSED (closing) or the
+  // ticket is currently CLOSED (reopening) — the two cases the backend
+  // itself requires a reason for.
+  const reasonRequired = selectedStatus === "CLOSED" || isReopening;
+
+  // Resets the form whenever ticket.status actually changes -- i.e. once
+  // the query invalidated by a successful mutation has refetched and this
+  // component has re-rendered with the new ticket, which is also exactly
+  // when `allowedTargets` above recomputes and the <select>'s rendered
+  // options change. Resetting anywhere else (e.g. immediately after
+  // mutateAsync resolves, before that refetch lands) sets a status value
+  // against options that haven't updated yet, and vice versa -- whichever
+  // side moves first, the two end up mismatched and the native <select>
+  // falls back to displaying something that matches neither the tracked
+  // form state nor the ticket's real status. Tying the reset to the same
+  // prop change that drives the options is the only way to guarantee
+  // they're always in sync.
+  //
+  // Deliberately NOT depending on `reset`/`allowedTargets`: `reset` is
+  // stable across renders per react-hook-form's own contract, and
+  // `allowedTargets` is fully determined by `ticket.status` (same lookup
+  // table every render), so re-running this effect only when the status
+  // itself changes is correct, not a missed dependency.
+  useEffect(() => {
+    reset({ status: allowedTargets[0] ?? "OPEN", reason: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.status]);
+
+  const handleClaim = async () => {
+    try {
+      await assignMutation.mutateAsync({});
+      toast.success(TICKET_AGENT_CONTROLS_TEXT.ASSIGN_SUCCESS_TOAST);
+    } catch {
+      // Surfaced below via assignMutation.error (e.g. someone else claimed
+      // it a moment ago, or a non-admin tried to take an already-assigned
+      // ticket).
+    }
+  };
+
+  const onSubmitStatus = handleSubmit(async (values) => {
+    try {
+      await statusMutation.mutateAsync({
+        status: values.status,
+        ...(reasonRequired && { reason: values.reason }),
+      });
+      toast.success(TICKET_AGENT_CONTROLS_TEXT.STATUS_SUCCESS_TOAST);
+      // No reset() here -- the effect above handles it once ticket.status
+      // actually changes, keeping the reset value and the <select>'s
+      // options perfectly in sync. Resetting eagerly here, before that
+      // happens, is exactly what caused the original bug (and what made
+      // an earlier attempted fix worse, not better: it picked the right
+      // *value* but against the still-stale *options list*, which is just
+      // the same mismatch from the other direction).
+    } catch {
+      // Surfaced below via statusMutation.error (e.g. someone else already
+      // moved the ticket, so the transition no longer applies).
+    }
+  });
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <h2 className="text-sm font-semibold text-text">{TICKET_AGENT_CONTROLS_TEXT.HEADING}</h2>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {isUnassigned ? (
+          <>
+            <Badge tone="neutral">{TICKET_AGENT_CONTROLS_TEXT.UNASSIGNED}</Badge>
+            <Button type="button" variant="secondary" isLoading={assignMutation.isPending} onClick={handleClaim}>
+              {TICKET_AGENT_CONTROLS_TEXT.CLAIM_BUTTON}
+            </Button>
+          </>
+        ) : isAssignedToMe ? (
+          <Badge tone="done">{TICKET_AGENT_CONTROLS_TEXT.ASSIGNED_TO_YOU}</Badge>
+        ) : (
+          <>
+            <Badge tone="neutral">{TICKET_AGENT_CONTROLS_TEXT.ASSIGNED_TO_OTHER}</Badge>
+            {currentUserRole === "ADMIN" && (
+              <Button type="button" variant="secondary" isLoading={assignMutation.isPending} onClick={handleClaim}>
+                {TICKET_AGENT_CONTROLS_TEXT.REASSIGN_TO_ME_BUTTON}
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+
+      {assignMutation.isError && <Alert tone="danger">{assignMutation.error.message}</Alert>}
+
+      {/* allowedTargets is never empty now that CLOSED has outgoing
+          transitions too (the agent-reopen case) — every status in
+          AGENT_STATUS_TRANSITIONS maps to at least one target, so this
+          form is always renderable when canDriveStatus is true. */}
+      {canDriveStatus && (
+        <form onSubmit={onSubmitStatus} noValidate className="flex flex-col gap-3">
+          <FormField label={TICKET_AGENT_CONTROLS_TEXT.STATUS_LABEL}>
+            {(field) => (
+              <Select {...field} className="w-auto" {...register("status")}>
+                {allowedTargets.map((target) => (
+                  <option key={target} value={target}>
+                    {TICKET_STATUS_LABELS[target]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+
+          {reasonRequired && (
+            <FormField
+              label={isReopening ? TICKET_AGENT_CONTROLS_TEXT.REOPEN_REASON_LABEL : TICKET_AGENT_CONTROLS_TEXT.REASON_LABEL}
+              error={errors.reason?.message}
+            >
+              {(field) => (
+                <TextArea
+                  {...field}
+                  rows={3}
+                  placeholder={
+                    isReopening
+                      ? TICKET_AGENT_CONTROLS_TEXT.REOPEN_REASON_PLACEHOLDER
+                      : TICKET_AGENT_CONTROLS_TEXT.REASON_PLACEHOLDER
+                  }
+                  hasError={Boolean(errors.reason)}
+                  {...register("reason")}
+                />
+              )}
+            </FormField>
+          )}
+
+          {statusMutation.isError && <Alert tone="danger">{statusMutation.error.message}</Alert>}
+
+          <div>
+            <Button type="submit" variant="primary" isLoading={statusMutation.isPending}>
+              {TICKET_AGENT_CONTROLS_TEXT.UPDATE_STATUS_BUTTON}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
+  );
+}

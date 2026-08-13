@@ -15,6 +15,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
+import { useProfile } from "@/lib/queries/use-profile";
 import { useTickets } from "@/lib/queries/use-tickets";
 import { cn } from "@/lib/utils";
 import { TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
@@ -66,6 +67,7 @@ function readQueryParams(searchParams: URLSearchParams) {
 export function TicketListView() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: profile, isLoading: isProfileLoading } = useProfile();
   const { page, sortBy, sortOrder } = readQueryParams(searchParams);
   // Not currently exposed as a user-facing control (no page-size picker),
   // so this stays a plain constant rather than a URL param like page/sortBy
@@ -82,7 +84,32 @@ export function TicketListView() {
     router.replace(`/tickets?${params.toString()}`, { scroll: false });
   };
 
-  const ticketsQuery = useTickets({ page, limit, sortBy, sortOrder });
+  // Same client-side role check as TicketQueueView, just the opposite
+  // direction -- this page is for a customer's own tickets, which isn't a
+  // thing for an AGENT/ADMIN account (Step 9.6.3; POST /tickets is now
+  // also CUSTOMER-only server-side, so this is UX, not the real boundary).
+  const canViewList = !(profile?.role === "AGENT" || profile?.role === "ADMIN");
+
+  const ticketsQuery = useTickets({ page, limit, sortBy, sortOrder }, { enabled: canViewList });
+
+  if (isProfileLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner label={TICKET_LIST_TEXT.LOADING} />
+      </div>
+    );
+  }
+
+  if (!canViewList) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <p className="text-text-secondary">{TICKET_LIST_TEXT.NOT_AVAILABLE}</p>
+        <Link href={ROUTES.TICKET_QUEUE} className="text-sm font-medium text-accent-done hover:underline">
+          {TICKET_LIST_TEXT.GO_TO_QUEUE}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

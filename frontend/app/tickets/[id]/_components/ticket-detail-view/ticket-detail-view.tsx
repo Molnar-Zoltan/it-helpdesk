@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDate } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants/routes.constants";
 import { useTicket } from "@/lib/queries/use-ticket";
+import { useProfile } from "@/lib/queries/use-profile";
 import { useCloseTicket } from "@/lib/mutations/use-close-ticket";
 import { useReopenTicket } from "@/lib/mutations/use-reopen-ticket";
 import { closeTicketSchema, reopenTicketSchema } from "@/lib/validation/ticket-schemas";
@@ -21,6 +22,7 @@ import {
   TICKET_REOPEN_MODAL_TEXT,
 } from "@/lib/constants/text/tickets.text";
 import { TicketStatusModal } from "../ticket-status-modal";
+import { TicketAgentControls } from "../ticket-agent-controls";
 import { MessageThread } from "../message-thread";
 import { MessageComposer } from "../message-composer";
 import type { TicketDetailViewProps } from "./ticket-detail-view.types";
@@ -29,6 +31,22 @@ type StatusModal = "close" | "reopen" | null;
 
 export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   const ticketQuery = useTicket(ticketId);
+  // Used both to gate TicketAgentControls and to pick the right "back"
+  // link/label below -- the page itself is reachable by a CUSTOMER
+  // viewing their own ticket, so this can't assume a logged-in AGENT/ADMIN
+  // the way TicketQueueView does for the whole page.
+  const { data: profile } = useProfile();
+  const isAgentOrAdmin = profile?.role === "AGENT" || profile?.role === "ADMIN";
+  // An AGENT/ADMIN always arrives here from the queue (Step 9.6.1) --
+  // /tickets is customer-only now (Step 9.6.3) -- so "back" should return
+  // there, not to a page that role no longer has access to.
+  const backHref = isAgentOrAdmin ? ROUTES.TICKET_QUEUE : ROUTES.TICKETS;
+  const backLabel = isAgentOrAdmin
+    ? TICKET_DETAIL_TEXT.BACK_TO_QUEUE
+    : TICKET_DETAIL_TEXT.BACK_TO_TICKETS;
+  const backLabelSimple = isAgentOrAdmin
+    ? TICKET_DETAIL_TEXT.BACK_TO_QUEUE_SIMPLE
+    : TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE;
   const closeTicketMutation = useCloseTicket(ticketId);
   const reopenTicketMutation = useReopenTicket(ticketId);
   const [openModal, setOpenModal] = useState<StatusModal>(null);
@@ -53,10 +71,10 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
           {isNotFound ? TICKET_DETAIL_TEXT.NOT_FOUND : ticketQuery.error.message}
         </p>
         <Link
-          href={ROUTES.TICKETS}
+          href={backHref}
           className="text-sm font-medium text-accent-done hover:underline"
         >
-          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS_SIMPLE}
+          {backLabelSimple}
         </Link>
       </div>
     );
@@ -70,8 +88,8 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={ROUTES.TICKETS} className="text-sm text-text-secondary hover:underline">
-          {TICKET_DETAIL_TEXT.BACK_TO_TICKETS}
+        <Link href={backHref} className="text-sm text-text-secondary hover:underline">
+          {backLabel}
         </Link>
       </div>
 
@@ -79,15 +97,24 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="text-2xl font-semibold text-text">{ticket.title}</h1>
 
-          {isClosed ? (
-            <Button variant="secondary" onClick={() => setOpenModal("reopen")}>
-              {TICKET_DETAIL_TEXT.REOPEN_BUTTON}
-            </Button>
-          ) : (
-            <Button variant="danger" onClick={() => setOpenModal("close")}>
-              {TICKET_DETAIL_TEXT.CLOSE_BUTTON}
-            </Button>
-          )}
+          {/* PATCH /tickets/:id/close and /reopen are both strictly
+              customer-only server-side (ticket.customerId !== customerId
+              -> 404), so this button must be hidden for AGENT/ADMIN, not
+              just left visible-but-broken. Closing is available to agents
+              through TicketAgentControls' CLOSED status transition
+              instead; reopen has no agent equivalent by design -- see
+              architecture.md#agent-dashboard-step-9 for why reopen stays
+              customer-only. */}
+          {!isAgentOrAdmin &&
+            (isClosed ? (
+              <Button variant="secondary" onClick={() => setOpenModal("reopen")}>
+                {TICKET_DETAIL_TEXT.REOPEN_BUTTON}
+              </Button>
+            ) : (
+              <Button variant="danger" onClick={() => setOpenModal("close")}>
+                {TICKET_DETAIL_TEXT.CLOSE_BUTTON}
+              </Button>
+            ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -125,6 +152,14 @@ export function TicketDetailView({ ticketId }: TicketDetailViewProps) {
             </Alert>
           )}
         </div>
+      )}
+
+      {profile && isAgentOrAdmin && (
+        <TicketAgentControls
+          ticket={ticket}
+          currentUserId={profile.id}
+          currentUserRole={profile.role}
+        />
       )}
 
       <Card>

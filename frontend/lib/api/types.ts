@@ -135,6 +135,22 @@ export interface TicketListQuery {
 /** GET /tickets response. */
 export type TicketListResponse = PaginatedResult<TicketResponse>;
 
+/** GET /tickets/queue query params, per FindTicketQueueDto — everything
+ * TicketListQuery already has, plus the agent-only filters. All three
+ * filters are optional and simply omitted from the request when unset,
+ * matching the backend's "no filter = every ticket" default. */
+export interface TicketQueueQuery extends TicketListQuery {
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  /** 'me' | 'unassigned' | a literal agent id, per FindTicketQueueDto. */
+  assignedTo?: string;
+}
+
+/** GET /tickets/queue response — same paginated shape as GET /tickets,
+ * kept as its own alias since the two endpoints' query params (and so
+ * their cache keys) already diverge. */
+export type TicketQueueResponse = PaginatedResult<TicketResponse>;
+
 /** PATCH /tickets/:id/close body. */
 export interface CloseTicketPayload {
   reason: string;
@@ -145,6 +161,22 @@ export interface ReopenTicketPayload {
   reason: string;
 }
 
+/** PATCH /tickets/:id/assign body, per AssignTicketDto. Omit `agentId` (or
+ * send `{}`) to self-assign — the calling AGENT/ADMIN claims the ticket.
+ * Only ADMIN may set this to a different agent's id. */
+export interface AssignTicketPayload {
+  agentId?: string;
+}
+
+/** PATCH /tickets/:id/status body, per UpdateTicketStatusDto. `reason` is
+ * only required (and only sent) when `status` is `CLOSED` — every other
+ * agent-driven transition carries no reason, same split the backend DTO
+ * enforces via @ValidateIf. */
+export interface UpdateTicketStatusPayload {
+  status: TicketStatus;
+  reason?: string;
+}
+
 /** POST /tickets/:id/messages body. */
 export interface CreateMessagePayload {
   content: string;
@@ -153,7 +185,13 @@ export interface CreateMessagePayload {
 /** Shape returned by both POST /tickets/:id/messages and
  * GET /tickets/:id/messages, per schema.prisma's Message model. senderId
  * is nullable (a deleted user's messages survive with senderId set to
- * null), so the UI can't assume every message has an identifiable sender. */
+ * null), so the UI can't assume every message has an identifiable sender.
+ * senderName is the sender's real name at read time (not stored on
+ * Message itself -- joined from User server-side), null exactly when
+ * senderId is null. Its exact content depends on who's asking: a customer
+ * viewer gets only the agent's first name (an agent's full name is never
+ * sent to a customer); an agent/admin viewer gets the full "First Last"
+ * for anyone. See TicketsService.toMessageResponse. */
 export interface MessageResponse {
   id: string;
   content: string;
@@ -161,4 +199,5 @@ export interface MessageResponse {
   createdAt: string;
   ticketId: string;
   senderId: string | null;
+  senderName: string | null;
 }

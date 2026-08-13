@@ -12,7 +12,7 @@ import {
   TICKET_MESSAGE_CONTENT_MAX_LENGTH,
   containsEmoji,
 } from "@helpdesk/shared";
-import type { TicketPriority } from "@helpdesk/shared";
+import type { TicketPriority, TicketStatus } from "@helpdesk/shared";
 import { TICKET_VALIDATION_TEXT } from "@/lib/constants/text/validation.text";
 
 /**
@@ -71,6 +71,61 @@ export const reopenTicketSchema = z.object({
     .refine((value) => !containsEmoji(value), TICKET_VALIDATION_TEXT.REASON_NO_EMOJI),
 });
 export type ReopenTicketFormValues = z.infer<typeof reopenTicketSchema>;
+
+export const AGENT_STATUS_TARGETS = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const satisfies readonly TicketStatus[];
+
+/**
+ * Backs TicketAgentControls' status-transition form. `reason` is required
+ * in two cases, mirroring UpdateTicketStatusDto's backend validation
+ * exactly:
+ * - The chosen target is CLOSED (an agent-forced close) — reuses the
+ *   close-reason bounds, since it fills the same closeReason column a
+ *   customer close does.
+ * - `currentStatus` (the ticket's status *before* this submission, passed
+ *   in by the caller) is CLOSED — an agent-driven reopen. Reuses the
+ *   reopen-reason bounds instead, since it fills the same reopenReason
+ *   column the customer-reopen endpoint does. The schema can't infer this
+ *   from `status` alone (the target is just OPEN/IN_PROGRESS, same as any
+ *   other ordinary transition) — it has to be told the ticket's starting
+ *   status explicitly, which is why this is a factory rather than a
+ *   plain exported schema.
+ *
+ * Which *targets* are actually offered for a given current status is a
+ * separate, purely client-side display concern — see
+ * AGENT_STATUS_TRANSITIONS in ticket-agent-controls.tsx.
+ */
+export function createUpdateTicketStatusSchema(currentStatus: TicketStatus) {
+  return z
+    .object({
+      status: z.enum(AGENT_STATUS_TARGETS),
+      reason: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      const isClosing = data.status === "CLOSED";
+      const isReopening = currentStatus === "CLOSED";
+      if (!isClosing && !isReopening) return;
+
+      const [minLength, maxLength] = isClosing
+        ? [TICKET_CLOSE_REASON_MIN_LENGTH, TICKET_CLOSE_REASON_MAX_LENGTH]
+        : [TICKET_REOPEN_REASON_MIN_LENGTH, TICKET_REOPEN_REASON_MAX_LENGTH];
+      const minLengthMessage = isClosing
+        ? TICKET_VALIDATION_TEXT.closeReasonMinLength
+        : TICKET_VALIDATION_TEXT.reopenReasonMinLength;
+      const maxLengthMessage = isClosing
+        ? TICKET_VALIDATION_TEXT.closeReasonMaxLength
+        : TICKET_VALIDATION_TEXT.reopenReasonMaxLength;
+
+      const reason = data.reason ?? "";
+      if (reason.length < minLength) {
+        ctx.addIssue({ code: "custom", path: ["reason"], message: minLengthMessage });
+      } else if (reason.length > maxLength) {
+        ctx.addIssue({ code: "custom", path: ["reason"], message: maxLengthMessage });
+      } else if (containsEmoji(reason)) {
+        ctx.addIssue({ code: "custom", path: ["reason"], message: TICKET_VALIDATION_TEXT.REASON_NO_EMOJI });
+      }
+    });
+}
+export type UpdateTicketStatusFormValues = z.infer<ReturnType<typeof createUpdateTicketStatusSchema>>;
 
 export const createMessageSchema = z.object({
   content: z

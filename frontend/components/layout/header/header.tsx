@@ -26,12 +26,12 @@ export function Header() {
 
         <nav className="flex items-center gap-6">
           {/*
-            Tickets only makes sense once there's a session, so there's no
-            point showing a logged-out visitor a link that just bounces
-            them to /login. Account and Log out now live inside UserMenu's
-            dropdown rather than as separate nav items.
+            Tickets is customer-only (Step 9.6.3 — filing/viewing your own
+            tickets isn't a thing for an AGENT/ADMIN account, which uses
+            Queue below instead). A CUSTOMER-only check, not just "logged
+            in", now that Queue exists as the agent/admin equivalent.
           */}
-          {profile && (
+          {profile && profile.role === "CUSTOMER" && (
             <Link
               href={ROUTES.TICKETS}
               className="text-sm text-text-secondary transition-colors hover:text-text"
@@ -39,6 +39,22 @@ export function Header() {
               {HEADER_TEXT.NAV_TICKETS}
             </Link>
           )}
+
+          {/*
+            Queue is agent/admin-only — a CUSTOMER navigating to the URL
+            directly still gets a friendly in-page message (see
+            TicketQueueView), this just keeps the nav itself from
+            advertising a link that role can't use.
+          */}
+          {profile &&
+            (profile.role === "AGENT" || profile.role === "ADMIN") && (
+              <Link
+                href={ROUTES.TICKET_QUEUE}
+                className="text-sm text-text-secondary transition-colors hover:text-text"
+              >
+                {HEADER_TEXT.NAV_QUEUE}
+              </Link>
+            )}
 
           {isLoading ? (
             <Spinner label={HEADER_TEXT.LOADING_ACCOUNT} />

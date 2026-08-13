@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.11.0] - 2026-08-13
+
+### Documentation
+
+- **readme:** Remove stale ticket-lifecycle bullet
+- **demo-data:** Update docs for second demo agent
+
+### Features
+
+- **auth:** Surface the agent demo account on the login page
+- **frontend:** List both demo agent accounts on login page
+
+### Miscellaneous Tasks
+
+- **demo-data:** Add second demo agent, unassign 4 newest tickets
+
 ## [0.10.0] - 2026-08-13
 
 ### Bug Fixes

@@ -41,7 +41,6 @@ model User {
   ticketsAsCustomer Ticket[]       @relation("CustomerTickets")
   ticketsAsAgent    Ticket[]       @relation("AgentTickets")
   messages          Message[]
-  aiUsages          AiUsage[]
   refreshTokens     RefreshToken[]
 }
 
@@ -90,17 +89,6 @@ model Message {
 
   senderId String?
   sender   User?   @relation(fields: [senderId], references: [id], onDelete: SetNull)
-}
-
-model AiUsage {
-  id        String   @id @default(cuid())
-  userId    String
-  date      DateTime @db.Date
-  count     Int      @default(0)
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([userId, date])
 }
 
 model RefreshToken {

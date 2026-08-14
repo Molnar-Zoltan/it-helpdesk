@@ -21,8 +21,7 @@ export const USERS_ERRORS = {
     'This is a shared demo account and cannot be modified or deleted',
   NEW_PASSWORD_SAME_AS_CURRENT:
     'New password must be different from your current password',
-  EMAIL_SAME_AS_CURRENT:
-    'New email must be different from your current email',
+  EMAIL_SAME_AS_CURRENT: 'New email must be different from your current email',
 } as const;
 
 export const TICKETS_ERRORS = {
@@ -41,4 +40,9 @@ export const TICKETS_ERRORS = {
   TICKET_NOT_ASSIGNED_TO_YOU:
     'Only the assigned agent or an admin can update this ticket status',
   REOPEN_REASON_REQUIRED: 'A reason is required when reopening a ticket',
+} as const;
+
+export const AI_ERRORS = {
+  GEMINI_UNAVAILABLE:
+    'The AI assistant is temporarily unavailable. Please try again in a moment, or file a ticket manually.',
 } as const;

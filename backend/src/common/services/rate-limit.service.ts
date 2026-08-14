@@ -34,6 +34,17 @@ export class RateLimitService {
     return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
   }
 
+  /**
+   * Raw current count for a key, without checking it against any max --
+   * used where a caller needs to *display* usage (Step 10's GET
+   * /ai/usage) rather than enforce a limit, so it deliberately doesn't
+   * share a return shape with isLimited().
+   */
+  async getCount(key: string): Promise<number> {
+    const countStr = await this.redis.getClient().get(key);
+    return countStr ? Number(countStr) : 0;
+  }
+
   async isLimited(key: string, max: number): Promise<RateLimitStatus> {
     const client = this.redis.getClient();
     const [countStr, ttl] = await Promise.all([

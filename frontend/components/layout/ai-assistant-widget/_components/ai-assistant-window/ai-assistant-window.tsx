@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { X } from "lucide-react";
 import { AI_CHAT_ROLES, AI_CHAT_MAX_TRANSCRIPT_MESSAGES, API_ERROR_CODES } from "@helpdesk/shared";
-import type { AiChatRole } from "@helpdesk/shared";
 import { Alert } from "@/components/ui/alert";
 import { ApiError } from "@/lib/api/client";
 import { useAiChat } from "@/lib/mutations/use-ai-chat";
@@ -14,32 +13,31 @@ import { useAiUsage } from "@/lib/queries/use-ai-usage";
 import { useRateLimitCountdown, formatCountdown } from "@/lib/hooks/use-rate-limit-countdown";
 import { ROUTES } from "@/lib/constants/routes.constants";
 import { AI_ASSISTANT_TEXT, AI_ASSISTANT_COMPOSER_TEXT } from "@/lib/constants/text/ai-assistant.text";
+import type { TranscriptEntry } from "../../ai-assistant-widget.types";
 import { AiAssistantMessage } from "../ai-assistant-message";
 import { AiAssistantComposer } from "../ai-assistant-composer";
 import { AiUsageIndicator } from "../ai-usage-indicator";
 
-interface TranscriptEntry {
-  id: string;
-  role: AiChatRole;
-  content: string;
-}
-
 interface AiAssistantWindowProps {
   onClose: () => void;
+  messages: TranscriptEntry[];
+  onMessagesChange: (updater: (previous: TranscriptEntry[]) => TranscriptEntry[]) => void;
 }
 
 /**
  * The open state of the widget -- everything AiChatPanel used to own
  * (Step 10.6's original full-page version), now inside a fixed
- * bottom-right window instead of a page. Mounted for the lifetime of the
- * root layout, so the transcript survives client-side navigation between
- * pages, same as a real Messenger window would; it only resets on a hard
- * reload (Step 10.4's backend is stateless either way, so nothing is
- * actually lost server-side by that).
+ * bottom-right window instead of a page.
+ *
+ * `messages` is owned by AiAssistantWidget, not this component -- this
+ * component itself unmounts every time the widget collapses to the
+ * launcher bubble, so keeping the transcript here would lose it on every
+ * close/reopen. Lifting it up means the conversation survives closing
+ * and reopening the widget, the same way a real Messenger window would;
+ * it only resets on a hard reload, since nothing is written to storage.
  */
-export function AiAssistantWindow({ onClose }: AiAssistantWindowProps) {
+export function AiAssistantWindow({ onClose, messages, onMessagesChange }: AiAssistantWindowProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<TranscriptEntry[]>([]);
   const chatMutation = useAiChat();
   const usageQuery = useAiUsage();
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
@@ -106,7 +104,7 @@ export function AiAssistantWindow({ onClose }: AiAssistantWindowProps) {
     // response) is what lets a failed attempt's text survive to be
     // resent on the next try instead of being lost.
     const nextMessages = [...messages, userEntry];
-    setMessages(nextMessages);
+    onMessagesChange(() => nextMessages);
 
     try {
       const response = await chatMutation.mutateAsync({
@@ -120,7 +118,7 @@ export function AiAssistantWindow({ onClose }: AiAssistantWindowProps) {
         return;
       }
 
-      setMessages((prev) => [
+      onMessagesChange((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: AI_CHAT_ROLES.MODEL, content: response.content },
       ]);
@@ -144,7 +142,7 @@ export function AiAssistantWindow({ onClose }: AiAssistantWindowProps) {
           type="button"
           onClick={onClose}
           aria-label={AI_ASSISTANT_TEXT.CLOSE_ARIA_LABEL}
-          className="rounded-md p-1 text-text-secondary transition-colors hover:bg-surface hover:text-text"
+          className="cursor-pointer rounded-md p-1 text-text-secondary transition-colors hover:bg-surface hover:text-text"
         >
           <X aria-hidden="true" className="h-4 w-4" />
         </button>

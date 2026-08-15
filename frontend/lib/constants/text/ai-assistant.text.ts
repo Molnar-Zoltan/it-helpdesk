@@ -39,5 +39,5 @@ export const AI_ASSISTANT_COMPOSER_TEXT = {
 /** AiUsageIndicator's "X of Y used today" display, shown under the
  * widget's header title. */
 export const AI_USAGE_INDICATOR_TEXT = {
-  usedToday: (used: number, limit: number) => `${used} of ${limit} used today`,
+  usedToday: (used: number, limit: number) => `${used} of ${limit} messages used today`,
 } as const;

@@ -130,7 +130,7 @@ export function TicketListView() {
           <button
             type="button"
             onClick={openAiAssistant}
-            className="text-xs font-medium text-text-secondary hover:text-text hover:underline"
+            className="cursor-pointer text-xs font-medium text-text-secondary hover:text-text hover:underline"
           >
             {TICKET_LIST_TEXT.AI_CHAT_LINK}
           </button>

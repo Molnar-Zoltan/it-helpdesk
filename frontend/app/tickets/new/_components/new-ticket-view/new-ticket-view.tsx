@@ -53,7 +53,7 @@ export function NewTicketView() {
       <button
         type="button"
         onClick={openAiAssistant}
-        className="self-start text-sm font-medium text-accent-done hover:underline"
+        className="cursor-pointer self-start text-sm font-medium text-accent-done hover:underline"
       >
         {NEW_TICKET_TEXT.AI_CHAT_LINK}
       </button>

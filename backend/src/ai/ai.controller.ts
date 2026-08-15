@@ -27,8 +27,11 @@ export class AiController {
   // Read-only usage check -- doesn't consume the daily limit itself
   // (no AiDailyRateLimitGuard here), so the frontend (Step 10.6.3) can
   // show "X of Y used today" before the user sends a single message.
+  // Passes the caller's IP through so the response can reflect whichever
+  // of the per-user/per-IP caps (see AiDailyRateLimitGuard) is actually
+  // tighter right now -- see AiService.getUsage's own comment.
   @Get('usage')
   usage(@Req() req: AuthenticatedRequest) {
-    return this.aiService.getUsage(req.user.userId);
+    return this.aiService.getUsage(req.user.userId, req.ip ?? 'unknown');
   }
 }

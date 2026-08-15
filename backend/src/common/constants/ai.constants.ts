@@ -27,6 +27,20 @@ export const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
 export const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT ?? 25);
 
 /**
+ * Per-IP daily cap, in addition to (not instead of) AI_DAILY_LIMIT's
+ * per-user cap -- without this, a per-account limit alone doesn't stop
+ * someone from just registering more accounts to get more free AI turns,
+ * the same gap LoginRateLimitGuard's email+IP keying already closes for
+ * brute-force login attempts. Deliberately higher than AI_DAILY_LIMIT
+ * (4x, by default) rather than equal to it: a shared IP (office wifi, a
+ * household, a school) can have several genuine customers on it in one
+ * day, and this shouldn't visibly kick in for them -- it only matters
+ * once usage on one IP is high enough to look like multi-accounting
+ * rather than ordinary shared-network traffic.
+ */
+export const AI_DAILY_IP_LIMIT = Number(process.env.AI_DAILY_IP_LIMIT ?? 100);
+
+/**
  * TTL on the Redis daily-usage counter. Deliberately longer than 24h: the
  * key is already scoped to a specific UTC calendar date (see
  * ai-usage-key.util.ts), so a new key is used the moment the date rolls

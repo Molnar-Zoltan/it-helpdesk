@@ -8,10 +8,11 @@ import { RateLimitService } from '../common/services/rate-limit.service';
 import { GeminiClient } from './gemini/gemini.client';
 import { CREATE_TICKET_FUNCTION_DECLARATION } from './gemini/create-ticket.tool';
 import { GeminiUnavailableException } from './exceptions/gemini-unavailable.exception';
-import { buildAiUsageKey } from './ai-usage-key.util';
+import { buildAiUsageKey, buildAiIpUsageKey } from './ai-usage-key.util';
 import {
   AI_CHAT_SYSTEM_INSTRUCTION,
   AI_DAILY_LIMIT,
+  AI_DAILY_IP_LIMIT,
   CREATE_TICKET_TOOL_NAME,
 } from '../common/constants/ai.constants';
 import { AI_CHAT_ROLES } from '@helpdesk/shared';
@@ -99,11 +100,28 @@ export class AiService {
     };
   }
 
-  /** Current usage against today's cap, for the frontend's "X of Y used
-   * today" display (Step 10.6.3) -- read-only, doesn't touch the counter. */
-  async getUsage(userId: string): Promise<AiUsageResponse> {
-    const used = await this.rateLimit.getCount(buildAiUsageKey(userId));
-    return { used, limit: AI_DAILY_LIMIT };
+  /**
+   * Current usage against today's cap, for the frontend's "X of Y used
+   * today" display (Step 10.6.3) -- read-only, doesn't touch either
+   * counter. Reflects the *tighter* of the per-user and per-IP caps
+   * (AiDailyRateLimitGuard's dual check): `used` is always the caller's
+   * own real count, but `limit` shrinks below AI_DAILY_LIMIT whenever the
+   * shared IP has less room left than the account does, so a fresh
+   * account on an already-heavily-used IP shows an accurate "X left"
+   * instead of a full 25 it can't actually reach. Deliberately doesn't
+   * expose the IP count itself (or which cap is binding) -- same reason
+   * AiDailyLimitExceededException doesn't name which cap tripped it.
+   */
+  async getUsage(userId: string, ip: string): Promise<AiUsageResponse> {
+    const [userUsed, ipUsed] = await Promise.all([
+      this.rateLimit.getCount(buildAiUsageKey(userId)),
+      this.rateLimit.getCount(buildAiIpUsageKey(ip)),
+    ]);
+    const userRemaining = Math.max(AI_DAILY_LIMIT - userUsed, 0);
+    const ipRemaining = Math.max(AI_DAILY_IP_LIMIT - ipUsed, 0);
+    const effectiveRemaining = Math.min(userRemaining, ipRemaining);
+
+    return { used: userUsed, limit: userUsed + effectiveRemaining };
   }
 
   /**

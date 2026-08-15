@@ -113,6 +113,14 @@ export function AiAssistantWindow({ onClose, messages, onMessagesChange }: AiAss
 
       if (response.type === "ticket_created") {
         toast.success(AI_ASSISTANT_TEXT.TICKET_CREATED_TOAST);
+        // Reset the transcript along with closing -- the conversation
+        // that produced this ticket is done; reopening the widget for a
+        // *new* issue should start fresh rather than resume mid-thread
+        // with a ticket_created reply sitting at the bottom. Persisting
+        // across close/reopen (the previous fix) is only meant to
+        // survive an accidental close mid-conversation, not to carry a
+        // finished one forward.
+        onMessagesChange(() => []);
         onClose();
         router.push(ROUTES.ticketDetail(response.ticket.id));
         return;

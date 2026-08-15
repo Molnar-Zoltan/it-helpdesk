@@ -226,10 +226,6 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
 12. ⬜ Admin analytics dashboard (ticket volume, AI usage trends) — deliberately left until after Step 10, since roughly half its planned metrics depend on AI usage data that didn't exist until now.
 13. ⬜ Unit/integration tests for backend services and controllers
 
-Also on the list, not yet slotted into a numbered step:
-
-- **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.
-
 ## License
 
 MIT

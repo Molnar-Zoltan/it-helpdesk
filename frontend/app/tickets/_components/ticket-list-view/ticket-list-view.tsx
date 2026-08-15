@@ -121,9 +121,17 @@ export function TicketListView() {
           </p>
         </div>
 
-        <Link href={ROUTES.NEW_TICKET} className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
-          {TICKET_LIST_TEXT.NEW_TICKET_LINK}
-        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Link href={ROUTES.NEW_TICKET} className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
+            {TICKET_LIST_TEXT.NEW_TICKET_LINK}
+          </Link>
+          <Link
+            href={ROUTES.AI_CHAT}
+            className="text-xs font-medium text-text-secondary hover:text-text hover:underline"
+          >
+            {TICKET_LIST_TEXT.AI_CHAT_LINK}
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-4">

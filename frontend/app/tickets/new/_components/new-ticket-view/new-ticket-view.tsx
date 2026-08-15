@@ -47,6 +47,13 @@ export function NewTicketView() {
       <Card>
         <NewTicketForm />
       </Card>
+
+      <Link
+        href={ROUTES.AI_CHAT}
+        className="self-start text-sm font-medium text-accent-done hover:underline"
+      >
+        {NEW_TICKET_TEXT.AI_CHAT_LINK}
+      </Link>
     </div>
   );
 }

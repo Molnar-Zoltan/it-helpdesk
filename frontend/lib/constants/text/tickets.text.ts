@@ -38,6 +38,7 @@ export const TICKET_LIST_TEXT = {
   HEADING: "My tickets",
   SUBHEADING: "Everything you've filed, newest first by default.",
   NEW_TICKET_LINK: "New ticket",
+  AI_CHAT_LINK: "Chat with AI instead",
   NO_RESULTS_ON_PAGE: "No tickets on this page.",
   NO_TICKETS_YET: "You haven't filed any tickets yet.",
   FILE_FIRST_TICKET: "File your first ticket",
@@ -100,6 +101,43 @@ export const NEW_TICKET_TEXT = {
     `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're creating tickets too quickly. Try again in ${countdown}.`,
+  AI_CHAT_LINK: "Or describe it to our AI assistant instead",
+} as const;
+
+/** Copy for /tickets/ai-chat and its components (Step 10.6) -- the
+ * second of the two ticket-creation entry points architecture.md
+ * describes, alongside NEW_TICKET_TEXT's manual form. */
+export const AI_CHAT_TEXT = {
+  META_TITLE: `AI chat — ${SITE_NAME}`,
+  HEADING: "File a ticket by chatting",
+  SUBHEADING:
+    "Describe what's going wrong in your own words -- once there's enough detail, a ticket is filed automatically.",
+  INTRO:
+    "What's going on? Include what you were doing, any error messages, and when it started.",
+  TICKET_CREATED_TOAST: "Ticket filed -- taking you to it now.",
+  MANUAL_FALLBACK_LINK: "File manually instead",
+} as const;
+
+export const AI_CHAT_MESSAGE_TEXT = {
+  YOU_LABEL: "You",
+  ASSISTANT_LABEL: "AI assistant",
+} as const;
+
+export const AI_CHAT_COMPOSER_TEXT = {
+  FIELD_LABEL: "Message",
+  PLACEHOLDER: "Describe the issue...",
+  SUBMIT: "Send",
+  charactersHint: (length: number, max: number) => `${length}/${max} characters`,
+  rateLimitedMessage: (countdown: string) =>
+    `You've reached today's AI chat limit. It resets in ${countdown}.`,
+  LIMIT_REACHED: "You've reached today's AI chat limit -- it resets at midnight UTC.",
+  CONVERSATION_LIMIT_REACHED:
+    "This conversation has gone on long enough that the AI assistant needs a fresh start -- file the rest as a manual ticket.",
+} as const;
+
+/** AiUsageIndicator's "X of Y used today" display. */
+export const AI_USAGE_INDICATOR_TEXT = {
+  usedToday: (used: number, limit: number) => `${used} of ${limit} AI messages used today`,
 } as const;
 
 export const TICKET_DETAIL_TEXT = {

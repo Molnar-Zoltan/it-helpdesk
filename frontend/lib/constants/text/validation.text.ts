@@ -12,6 +12,7 @@ import {
   TICKET_REOPEN_REASON_MIN_LENGTH,
   TICKET_REOPEN_REASON_MAX_LENGTH,
   TICKET_MESSAGE_CONTENT_MAX_LENGTH,
+  AI_CHAT_MESSAGE_MAX_LENGTH,
 } from "@helpdesk/shared";
 
 /**
@@ -63,6 +64,16 @@ export const TICKET_VALIDATION_TEXT = {
   REASON_NO_EMOJI: "Reason can't contain emoji",
   MESSAGE_EMPTY: "Message can't be empty",
   messageMaxLength: `Message must be ${TICKET_MESSAGE_CONTENT_MAX_LENGTH} characters or fewer`,
+  MESSAGE_NO_EMOJI: "Message can't contain emoji",
+} as const;
+
+/** Backs AiChatComposer's single-message input -- mirrors
+ * AiChatMessageDto's bounds (backend/src/ai/dto/ai-chat.dto.ts), the same
+ * "quote the shared constant, don't duplicate the number" pattern as
+ * TICKET_VALIDATION_TEXT above. */
+export const AI_CHAT_VALIDATION_TEXT = {
+  MESSAGE_EMPTY: "Message can't be empty",
+  messageMaxLength: `Message must be ${AI_CHAT_MESSAGE_MAX_LENGTH} characters or fewer`,
   MESSAGE_NO_EMOJI: "Message can't contain emoji",
 } as const;
 

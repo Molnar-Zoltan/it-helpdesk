@@ -220,12 +220,11 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
     - 10.4 ✅ Frontend — AI Assistant widget. Originally built as a dedicated `/tickets/ai-chat` page, then redesigned into a persistent, site-wide floating widget (Messenger-style: a collapsed bubble that expands into a fixed bottom-right chat window, header titled "AI Assistant") after review — mounted once in the root layout so it's available on every page for a logged-in customer and survives client-side navigation instead of resetting per route. The transcript lives one level up from the open/closed window itself (in `AiAssistantWidget`, not `AiAssistantWindow`) specifically so closing and reopening the widget keeps the conversation, while a successful `ticket_created` still resets it for the next issue. A static greeting bubble (a plain constant, never sent to the backend) opens an empty conversation. `AiAssistantProvider` (React context) lets "Open AI Assistant" buttons elsewhere in the UI (the ticket list, the manual creation form) reach into the widget without prop-drilling.
     - 10.5 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md`, `schema.md` updated for all of Step 10, including the `AiUsage` model's removal.
 
-Also on the list, not yet slotted into a numbered step:
+**Left**
 
-- **Admin analytics dashboard** (ticket volume, AI usage trends) — deliberately left until after Step 10, since roughly half its planned metrics depend on AI usage data that didn't exist until now.
-- **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
-- **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.
-- **Unit/integration tests** for backend services and controllers
+11. ⬜ Knowledge base / RAG — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step the AI assistant checks before (or alongside) `create_ticket` tool-calling. Involves a hand-authored migration for the `pgvector` extension + vector column (Prisma has no native vector type), an embedding pipeline (Gemini's embedding model, run on article create/update plus a backfill script), and raw-SQL similarity search via `$queryRaw` since Prisma Client doesn't model vector ops.
+12. ⬜ Admin analytics dashboard (ticket volume, AI usage trends) — deliberately left until after Step 10, since roughly half its planned metrics depend on AI usage data that didn't exist until now.
+13. ⬜ Unit/integration tests for backend services and controllers
 
 ## License
 

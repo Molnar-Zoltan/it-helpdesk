@@ -84,4 +84,7 @@ export const HOME_BUILD_PLAN_PHASES: Phase[] = [
   { label: "CI/CD pipeline", status: "done" },
   { label: "Agent dashboard", status: "done" },
   { label: "AI chat ticket path", status: "done" },
+  { label: "Knowledge base / RAG", status: "planned" },
+  { label: "Admin analytics dashboard", status: "planned" },
+  { label: "Unit & integration tests", status: "planned" },
 ];

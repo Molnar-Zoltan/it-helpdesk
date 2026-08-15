@@ -1,6 +1,6 @@
 import type { AiChatRole } from "@helpdesk/shared";
 
-export interface AiChatMessageProps {
+export interface AiAssistantMessageProps {
   role: AiChatRole;
   content: string;
 }

@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { useProfile } from "@/lib/queries/use-profile";
 import { useTickets } from "@/lib/queries/use-tickets";
+import { useAiAssistant } from "@/lib/context/ai-assistant-context";
 import { cn } from "@/lib/utils";
 import { TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
 import { ROUTES } from "@/lib/constants/routes.constants";
@@ -68,6 +69,7 @@ export function TicketListView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: profile, isLoading: isProfileLoading } = useProfile();
+  const { open: openAiAssistant } = useAiAssistant();
   const { page, sortBy, sortOrder } = readQueryParams(searchParams);
   // Not currently exposed as a user-facing control (no page-size picker),
   // so this stays a plain constant rather than a URL param like page/sortBy
@@ -125,12 +127,13 @@ export function TicketListView() {
           <Link href={ROUTES.NEW_TICKET} className={cn(LINK_BUTTON_CLASSES.primary, "shrink-0")}>
             {TICKET_LIST_TEXT.NEW_TICKET_LINK}
           </Link>
-          <Link
-            href={ROUTES.AI_CHAT}
+          <button
+            type="button"
+            onClick={openAiAssistant}
             className="text-xs font-medium text-text-secondary hover:text-text hover:underline"
           >
             {TICKET_LIST_TEXT.AI_CHAT_LINK}
-          </Link>
+          </button>
         </div>
       </div>
 

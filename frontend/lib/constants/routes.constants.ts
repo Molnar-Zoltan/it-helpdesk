@@ -17,7 +17,6 @@ export const ROUTES = {
   ACCOUNT: "/account",
   TICKETS: "/tickets",
   NEW_TICKET: "/tickets/new",
-  AI_CHAT: "/tickets/ai-chat",
   TICKET_QUEUE: "/tickets/queue",
   ticketDetail: (id: string) => `/tickets/${id}`,
 } as const;

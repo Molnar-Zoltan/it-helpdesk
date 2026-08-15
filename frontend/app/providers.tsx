@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode, type CSSProperties } from "react";
 import { Toaster } from "sonner";
+import { AiAssistantProvider } from "@/lib/context/ai-assistant-context";
 
 /**
  * Maps sonner's themeable CSS variables onto this app's own design tokens
@@ -39,7 +40,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <AiAssistantProvider>{children}</AiAssistantProvider>
       <Toaster theme="dark" position="top-right" style={toasterThemeVars} />
     </QueryClientProvider>
   );

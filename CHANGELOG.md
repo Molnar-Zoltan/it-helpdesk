@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.12.1] - 2026-08-15
+
+### Bug Fixes
+
+- **frontend:** Space out New ticket and AI Assistant buttons
+
+### Documentation
+
+- Add RAG, admin analytics, and testing to roadmap
+- Remove attachment links from roadmap backlog
+
 ## [0.12.0] - 2026-08-15
 
 ### Bug Fixes

@@ -18,17 +18,18 @@ export class AdminService {
    * demo over time; a partial reset would leave those behind.
    *
    * Deletion order respects FK direction (children before parents):
-   * Message/RefreshToken/AiUsage all reference User or Ticket, which must
-   * go last. seedDemoData (Step 4.1.9's extracted insert logic)
-   * then re-creates the same fixture `prisma db seed` does, so a reset
-   * produces byte-identical state to a fresh seed.
+   * Message/RefreshToken both reference User or Ticket, which must go
+   * last. AiUsage doesn't need a line here -- Step 10.2 tracks the AI
+   * daily limit in Redis, not a Prisma table (see schema.md). seedDemoData
+   * (Step 4.1.9's extracted insert logic) then re-creates the same
+   * fixture `prisma db seed` does, so a reset produces byte-identical
+   * state to a fresh seed.
    */
   async resetDemoData() {
     const counts = await this.prisma.$transaction(async (tx) => {
       await tx.message.deleteMany();
       await tx.ticket.deleteMany();
       await tx.refreshToken.deleteMany();
-      await tx.aiUsage.deleteMany();
       await tx.user.deleteMany();
 
       return seedDemoData(tx);

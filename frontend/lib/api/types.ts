@@ -1,4 +1,5 @@
 import type {
+  AiChatRole,
   PaginatedResult,
   Role,
   SortOrder,
@@ -200,4 +201,16 @@ export interface MessageResponse {
   ticketId: string;
   senderId: string | null;
   senderName: string | null;
+}
+
+/** POST /ai/chat body, per AiChatRequestDto. Step 10.4's stateless
+ * backend means this is the *whole* transcript so far, including the
+ * message just typed -- AiChatPanel owns building this array, this hook
+ * layer does no bookkeeping of its own. `AiChatResponse`/`AiUsageResponse`
+ * (the response shapes for this and GET /ai/usage) come straight from
+ * @helpdesk/shared rather than being re-declared here, since they're
+ * already part of that package's public API (backend and frontend share
+ * the exact same type). */
+export interface AiChatPayload {
+  messages: { role: AiChatRole; content: string }[];
 }

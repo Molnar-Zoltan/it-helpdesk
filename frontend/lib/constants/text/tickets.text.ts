@@ -38,6 +38,7 @@ export const TICKET_LIST_TEXT = {
   HEADING: "My tickets",
   SUBHEADING: "Everything you've filed, newest first by default.",
   NEW_TICKET_LINK: "New ticket",
+  AI_CHAT_LINK: "Open AI Assistant",
   NO_RESULTS_ON_PAGE: "No tickets on this page.",
   NO_TICKETS_YET: "You haven't filed any tickets yet.",
   FILE_FIRST_TICKET: "File your first ticket",
@@ -100,6 +101,7 @@ export const NEW_TICKET_TEXT = {
     `${length}/${max} characters`,
   rateLimitedMessage: (countdown: string) =>
     `You're creating tickets too quickly. Try again in ${countdown}.`,
+  AI_CHAT_LINK: "Or ask the AI Assistant to help instead",
 } as const;
 
 export const TICKET_DETAIL_TEXT = {

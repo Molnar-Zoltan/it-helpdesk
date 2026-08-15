@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { useProfile } from "@/lib/queries/use-profile";
+import { useAiAssistant } from "@/lib/context/ai-assistant-context";
 import { ROUTES } from "@/lib/constants/routes.constants";
 import { NEW_TICKET_TEXT, TICKET_LIST_TEXT } from "@/lib/constants/text/tickets.text";
 import { NewTicketForm } from "../new-ticket-form";
@@ -16,6 +17,7 @@ import { NewTicketForm } from "../new-ticket-form";
  */
 export function NewTicketView() {
   const { data: profile, isLoading } = useProfile();
+  const { open: openAiAssistant } = useAiAssistant();
   const isAgentOrAdmin = profile?.role === "AGENT" || profile?.role === "ADMIN";
 
   if (isLoading) {
@@ -47,6 +49,14 @@ export function NewTicketView() {
       <Card>
         <NewTicketForm />
       </Card>
+
+      <button
+        type="button"
+        onClick={openAiAssistant}
+        className="cursor-pointer self-start text-sm font-medium text-accent-done hover:underline"
+      >
+        {NEW_TICKET_TEXT.AI_CHAT_LINK}
+      </button>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { AiAssistantWidget } from "@/components/layout/ai-assistant-widget";
 import { Analytics } from "@vercel/analytics/next"
 import { HOME_TEXT } from "@/lib/constants/text/common.text";
 import "./globals.css";
@@ -39,6 +40,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <AiAssistantWidget />
         </Providers>
         <Analytics />
       </body>

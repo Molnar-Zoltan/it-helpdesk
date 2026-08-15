@@ -2,7 +2,7 @@
 
 An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.
 
-**Live demo:** https://it-helpdesk.zoltanmolnar.eu/ — deployed and under active development, not the final release. Auth, account self-service, manual ticket filing (create, list, view, close, reopen, message), and the agent dashboard (assignment, status transitions, queue) are all live end to end; the AI chat path isn't built yet — see [Roadmap](#roadmap).  
+**Live demo:** https://it-helpdesk.zoltanmolnar.eu/ — deployed and under active development, not the final release. Auth, account self-service, manual ticket filing (create, list, view, close, reopen, message), the agent dashboard (assignment, status transitions, queue), and the AI chat assistant are all live end to end — see [Roadmap](#roadmap).  
 **Demo login:** `admin@helpdesk.dev` / `agent@helpdesk.dev` / `agent2@helpdesk.dev` / `customer@helpdesk.dev` — password `password123` for all four (see [seed data](#seed-data))
 
 **API docs:** [docs/api-endpoints.md](https://github.com/Molnar-Zoltan/it-helpdesk/blob/main/docs/api-endpoints.md) 
@@ -13,9 +13,9 @@ An IT helpdesk application where users can file tickets manually or by chatting 
 
 Most portfolio CRUD apps stop at "create, read, update, delete." This one is built to work through three problems that show up in real production systems, not just ship a form:
 
-- **Turning unstructured input into structured data.** The planned AI chat path will use tool/function calling (Gemini) so the model returns a validated `{ title, description, category, priority }` object instead of free text that has to be parsed and guessed at.
-- **Bounding the cost of an AI feature.** AI messages will be capped per account per day, enforced with a Redis-backed counter — not just a UI limit, but a real server-side guard.
-- **Two producers, one contract.** Manual form submissions and AI-extracted tickets will both flow through the same `TicketsService` and the same validation rules, so the AI path can never create a ticket the manual path wouldn't allow.
+- **Turning unstructured input into structured data.** The AI chat path uses tool/function calling (Gemini) so the model returns a validated `{ title, description, priority }` object instead of free text that has to be parsed and guessed at.
+- **Bounding the cost of an AI feature.** AI messages are capped per account *and* per IP address per day, both enforced with Redis-backed counters — not just a UI limit, but a real server-side guard, and one that a handful of throwaway accounts can't just add around.
+- **Two producers, one contract.** Manual form submissions and AI-extracted tickets both flow through the same `TicketsService` and the same validation rules, so the AI path can never create a ticket the manual path wouldn't allow.
 
 ## Features
 
@@ -29,6 +29,7 @@ Most portfolio CRUD apps stop at "create, read, update, delete." This one is bui
 - Redis-backed rate limiting: 5 failed login attempts per email+IP pair within 15 minutes returns a `429` with a real retry countdown, surfaced live in the login form; ticket creation and messages carry a shorter anti-spam cooldown (60s / 10s) protecting the public demo from abuse — documented in [docs/api-endpoints.md](docs/api-endpoints.md#login-rate-limiting)
 - Cloudflare Turnstile CAPTCHA on registration: `POST /auth/register` is gated behind a verified Turnstile token (fails closed if Cloudflare's siteverify API is unreachable, since this is a hard anti-bot gate, not an advisory check) — documented in [docs/api-endpoints.md](docs/api-endpoints.md#registration-captcha)
 - Agent dashboard: `AGENT`/`ADMIN` users get a ticket queue (`/tickets/queue`, filterable by status/priority/assignment), self-assign or admin-reassign, and agent-driven status transitions (`OPEN`/`IN_PROGRESS`/`RESOLVED`/`CLOSED`) on top of the existing customer-facing lifecycle — full UI at `/tickets/queue` and on each ticket's detail page, backed by the API documented in [docs/api-endpoints.md](docs/api-endpoints.md#tickets-tickets)
+- AI chat ticket intake: a site-wide floating "AI Assistant" widget (logged-in customers only) that turns a short conversation into a filed ticket via Gemini tool-calling — same validation and same `TicketsService.create()` as the manual form, with the full exchange saved as the new ticket's message thread. Capped per account *and* per IP address per day (Redis-backed, dual guard), documented in [docs/api-endpoints.md](docs/api-endpoints.md#ai-ai)
 
 Not yet built — see [Roadmap](#roadmap).
 
@@ -63,7 +64,7 @@ NestJS API (Google Cloud Run)
 
 Manual ticket submissions and AI-chat ticket submissions are two separate entry points that both call the same `TicketsService.create()` — see [docs/architecture.md](docs/architecture.md) for the full flow diagram.
 
-`RateLimitService` (Redis-backed, `ioredis` over TCP) is shared across rate-limited surfaces with different policies: login (5 attempts/15 min, email+IP — done, Step 6), ticket creation and messages (60s/10s anti-spam cooldowns, protecting the public demo — done, Step 6), and AI chat (10 req/day/user — Step 10). Registration uses Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter — done, Step 7. See [Roadmap](#roadmap).
+`RateLimitService` (Redis-backed, `ioredis` over TCP) is shared across rate-limited surfaces with different policies: login (5 attempts/15 min, email+IP — done, Step 6), ticket creation and messages (60s/10s anti-spam cooldowns, protecting the public demo — done, Step 6), and AI chat (25 req/day/user *and* 100 req/day/IP, both checked together — done, Step 10). Registration uses Cloudflare Turnstile instead of a counter, since CAPTCHA fits a one-shot signup better than a request counter — done, Step 7. See [Roadmap](#roadmap).
 
 Redis is accessed over a plain TCP connection via `ioredis` rather than Upstash's REST client, so the same connection code works unchanged against the local Docker Redis container and against Upstash in production — just a different `REDIS_URL`.
 
@@ -130,6 +131,7 @@ Each app owns its own env file — see [`backend/.env.example`](backend/.env.exa
 | `DATABASE_URL` | Postgres connection string, used by Prisma's `datasource` config and driver adapter |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Signing secrets for access and refresh tokens |
 | `AI_DAILY_LIMIT` | Max AI chat messages per user per day (default: 25) |
+| `AI_DAILY_IP_LIMIT` | Max AI chat messages per IP address per day (default: 100) — a second, looser cap alongside `AI_DAILY_LIMIT` so a per-account limit alone can't be routed around by registering more accounts; see [architecture.md](docs/architecture.md#rate-limiting) |
 | `GEMINI_API_KEY` | Gemini API key for AI ticket extraction |
 | `REDIS_URL` | Redis connection string — `redis://localhost:6379` locally, `rediss://default:<password>@<host>:6379` on Upstash |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | Failed login attempts before lockout (default: 5) |
@@ -211,20 +213,19 @@ Built as a vertical slice per step (DB → API → UI), backend before frontend,
      - 9.6.3 ✅ Follow-up fixes from review: `POST /tickets` became `CUSTOMER`-only server-side (previously any authenticated role could file a ticket as themselves), mirrored on the frontend by gating the Tickets link, `/tickets`, and `/tickets/new` to customers, with a friendly in-page message for an agent/admin who navigates there directly — flagged as a simplification, since real helpdesk products commonly let an agent file on a customer's behalf instead. Ticket detail's back-link is now role-aware (`Back to queue` vs `Back to tickets`). `TicketRow` blocks navigation into another agent's assigned ticket with a deduplicated toast (`sonner`'s `id` option) instead of letting it 404 through.
    - 9.7 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md` updated for all of Step 9; home page's build-plan panel now shows "Agent dashboard" as done.
    - 9.8 ✅ Seed data follow-up — added a second demo agent (`agent2@helpdesk.dev`, no tickets pre-assigned) so the queue's reassign flow has a real second agent to pick from, and unassigned the 4 newest of the 12 demo tickets so the queue isn't 100% pre-claimed on a fresh seed.
-
-**Left**
-
-10. ⬜ AI chat ticket path
-    - 10.1 Backend — Gemini tool-calling into `TicketsService.create()`
-    - 10.2 Frontend — chat UI
-    - 10.3 AI daily rate limit (Redis-backed, `AI_DAILY_LIMIT` = 25/day/user)
+10. ✅ AI chat ticket path — a second, chat-based entry point into ticket creation, alongside (not instead of) the manual form. See [architecture.md](docs/architecture.md#ai-chat-step-10) and [architecture.md#ai-assistant-widget-frontend-step-106](docs/architecture.md#ai-assistant-widget-frontend-step-106) for the full design writeups.
+    - 10.1 ✅ Backend — Gemini tool-calling into `TicketsService.create()`. `GeminiClient` (`ai/gemini/`) wraps `@google/genai`, using an `AbortController`+`setTimeout` for the request timeout after the SDK's own `httpOptions.timeout` was confirmed unreliable for `generateContent`. A `create_ticket` `FunctionDeclaration` mirrors `CreateTicketDto`'s fields (`title`/`description`/`priority`) one-for-one; `AiService.chat()` is stateless — the frontend resends the full transcript every turn, nothing is read from or written to persistence unless `create_ticket` actually fires. A successful call runs through the *exact same* `class-validator` rules the manual form's DTO enforces, not a parallel path — a malformed call from the model comes back as an ordinary clarifying chat message, not a hard HTTP error, since it's a model mistake, not a user error. The full conversation (customer turns + the assistant's replies) is persisted as `Message` rows on the new ticket once it's created, so a ticket's detail page shows the exchange that produced it through the same thread UI a manually-created ticket uses.
+    - 10.2 ✅ Backend — AI daily rate limit. `AiDailyRateLimitGuard` reuses the same `RateLimitService` Redis primitives as login/ticket-creation, day-scoped keys (`ratelimit:ai:{userId}:{date}`) rather than a rolling TTL window. `GET /ai/usage` (read-only, no guard of its own) lets the frontend show "X of Y used today" without spending a turn to find out. The `AiUsage` Prisma model — scaffolded early for a Postgres-backed version of this counter — was dropped in favor of the Redis-backed one (`drop_ai_usage` migration), the same fate `IpUsage` had in Step 6.
+    - 10.3 ✅ Backend — per-IP daily cap, on top of (not instead of) the per-user one. A per-account limit alone doesn't stop someone from registering more accounts to add up several 25s — `AiDailyRateLimitGuard` now checks a second Redis counter (`ratelimit:ai-ip:{ipHash}:{date}`, `AI_DAILY_IP_LIMIT` = 100/day, deliberately 4x looser so a genuinely shared IP never notices it) and blocks on whichever cap is hit first, reusing the same trusted `request.ip` login's rate limiting already established. `GET /ai/usage` reflects the *tighter* of the two caps in its `limit` field rather than always returning the flat per-user number, so a fresh account on an already-heavily-used shared IP shows an accurate "X left." Neither the `429` response nor the usage response names which cap is binding, or any specific number tied to it — see [api-endpoints.md#ai-chat-rate-limiting](docs/api-endpoints.md#ai-chat-rate-limiting) for the reasoning.
+    - 10.4 ✅ Frontend — AI Assistant widget. Originally built as a dedicated `/tickets/ai-chat` page, then redesigned into a persistent, site-wide floating widget (Messenger-style: a collapsed bubble that expands into a fixed bottom-right chat window, header titled "AI Assistant") after review — mounted once in the root layout so it's available on every page for a logged-in customer and survives client-side navigation instead of resetting per route. The transcript lives one level up from the open/closed window itself (in `AiAssistantWidget`, not `AiAssistantWindow`) specifically so closing and reopening the widget keeps the conversation, while a successful `ticket_created` still resets it for the next issue. A static greeting bubble (a plain constant, never sent to the backend) opens an empty conversation. `AiAssistantProvider` (React context) lets "Open AI Assistant" buttons elsewhere in the UI (the ticket list, the manual creation form) reach into the widget without prop-drilling.
+    - 10.5 ✅ Docs pass — README, `api-endpoints.md`, `architecture.md`, `schema.md` updated for all of Step 10, including the `AiUsage` model's removal.
 
 Also on the list, not yet slotted into a numbered step:
 
+- **Admin analytics dashboard** (ticket volume, AI usage trends) — deliberately left until after Step 10, since roughly half its planned metrics depend on AI usage data that didn't exist until now.
 - **Knowledge base / RAG** — a `KnowledgeArticle` model plus `pgvector` embeddings and a retrieval step for the AI assistant.
 - **Attachment links** on tickets — third-party URLs (e.g. a screenshot or log hosted elsewhere) rather than server-side file uploads, keeping the backend stateless with respect to file storage.
 - **Unit/integration tests** for backend services and controllers
-- **Admin analytics dashboard** (ticket volume, AI usage trends)
 
 ## License
 

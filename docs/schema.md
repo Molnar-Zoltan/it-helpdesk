@@ -11,7 +11,6 @@ This document describes the Prisma schema for the IT Helpdesk application: model
 | `User` | Customers, agents, and admins |
 | `Ticket` | A support ticket filed by a customer, optionally assigned to an agent |
 | `Message` | A message thread entry on a ticket (human or AI-generated) |
-| `AiUsage` | Per-user, per-day counter for AI chat rate limiting |
 | `RefreshToken` | Hashed refresh tokens issued to a user for session renewal |
 
 ## Entity-Relationship Diagram
@@ -21,7 +20,6 @@ erDiagram
     User ||--o{ Ticket : "files (customer)"
     User ||--o{ Ticket : "handles (agent)"
     User ||--o{ Message : sends
-    User ||--o{ AiUsage : has
     User ||--o{ RefreshToken : has
     Ticket ||--o{ Message : contains
 
@@ -61,13 +59,6 @@ erDiagram
         datetime createdAt
         string ticketId FK
         string senderId FK "nullable"
-    }
-
-    AiUsage {
-        string id PK
-        string userId FK
-        date date
-        int count
     }
 
     RefreshToken {
@@ -113,7 +104,6 @@ Central identity model. A user's `role` determines what they can do; a single `U
 - `ticketsAsCustomer` — tickets this user filed (`Ticket.customer`, relation name `CustomerTickets`)
 - `ticketsAsAgent` — tickets this user is assigned to (`Ticket.agent`, relation name `AgentTickets`)
 - `messages` — all messages this user has sent, across any ticket
-- `aiUsages` — daily AI-chat usage counters, for rate limiting
 - `refreshTokens` — active/expired refresh tokens issued to this user
 
 Two named relations (`CustomerTickets`, `AgentTickets`) exist because `Ticket` has two separate foreign keys pointing back to `User` (customer and agent), so Prisma needs the relation name to disambiguate which is which.
@@ -130,13 +120,12 @@ The core support request. Filed by a customer; may or may not have an agent assi
 Both the close and reopen fields are single snapshots, not a history — a second close/reopen cycle overwrites the previous values. Upgrading to a dedicated `TicketStatusChange` table (with a row per transition) is a possible future improvement if close/reopen cycling turns out to be frequent enough that losing prior reasons matters; not scheduled.
 
 ### `Message`
-A single entry in a ticket's conversation. Can come from a customer, an agent, or be AI-generated (`isAiGenerated: true`) when the AI chat path (Step 5 of the build plan) creates or replies to a ticket on the user's behalf. `sender` is nullable so a message survives its author's account deletion; the deletion flow replaces `content` with a placeholder like `"[deleted user]"` before nulling `senderId`.
+A single entry in a ticket's conversation. Can come from a customer, an agent, or be AI-generated (`isAiGenerated: true`) when the AI chat path creates a ticket from a conversation (`AiService.persistConversation` — see [architecture.md#ai-chat-step-10](architecture.md#ai-chat-step-10)) or when an agent/admin's own reply is machine-generated in the future. `sender` is nullable so a message survives its author's account deletion; the deletion flow replaces `content` with a placeholder like `"[deleted user]"` before nulling `senderId`.
 
 - `ticket` — the parent ticket, via `ticketId` (`onDelete: Cascade` — deleting a ticket deletes its messages)
-- `sender` (nullable) — the `User` who sent it, via `senderId`
+- `sender` (nullable) — the `User` who sent it, via `senderId`; always `null` for an AI-generated message, same as a message from a deleted user
 
-### `AiUsage`
-Tracks how many AI chat requests a user has made on a given calendar day, backing the "10 AI requests/day" rate limit. `@@unique([userId, date])` ensures one row per user per day; `count` is incremented on each request.
+> **Removed: `AiUsage`.** Scaffolded early for a Postgres-backed per-user, per-day AI usage counter, but the AI chat feature (Step 10) implemented the daily limit via Redis instead (`RateLimitService`, `ratelimit:ai:{userId}:{date}` and `ratelimit:ai-ip:{ipHash}:{date}` — see [architecture.md#rate-limiting](architecture.md#rate-limiting)), for the same Cloud-Run-scale-to-zero reasoning `IpUsage` below was dropped for. Dropped in the `drop_ai_usage` migration; `AdminService.resetDemoData()`'s wipe order no longer touches it.
 
 > **Removed: `IpUsage`.** Scaffolded early for Postgres-backed IP rate limiting, but Step 6 implemented login rate limiting via Redis instead (`RateLimitService`, `ratelimit:login:{emailHash}:{ipHash}` — see [architecture.md#rate-limiting](architecture.md#rate-limiting)), and nothing ever wrote to this table. Dropped in the `drop_ip_usage` migration rather than left as unused schema alongside a working Redis-based limiter.
 

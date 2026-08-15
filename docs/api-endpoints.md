@@ -276,7 +276,7 @@ Lists tickets across all customers — the agent/admin browsing view, unscoped b
 **Errors**: `400` if `page`/`limit`/`sortBy`/`sortOrder`/`status`/`priority` are invalid; `403` if the caller isn't `AGENT`/`ADMIN`.
 
 ### `POST /tickets/:id/messages`
-Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visibility: same [`canAccessTicket`](architecture.md#agent-dashboard-step-9) rule as `GET /tickets/:id` — the owning customer; the ticket's assigned agent, or any `AGENT` while unassigned; or `ADMIN`, unconditionally. `isAiGenerated` defaults to `false`; the AI chat path (Step 10) will write its own `Message` rows separately.
+Adds a message to a ticket's thread. `senderId` is always derived from the access token. Visibility: same [`canAccessTicket`](architecture.md#agent-dashboard-step-9) rule as `GET /tickets/:id` — the owning customer; the ticket's assigned agent, or any `AGENT` while unassigned; or `ADMIN`, unconditionally. `isAiGenerated` defaults to `false`; the AI chat path writes its own `Message` rows the same way once it creates a ticket — see [AI (`/ai`)](#ai-ai) below.
 
 **Body**
 ```json
@@ -318,6 +318,79 @@ Both return the same shape as login's `429` (`retryAfterSeconds` read off the Re
 Every attempt counts against the cooldown, success or not — unlike login (which only counts *failed* attempts, so a mistyped password doesn't cost the window), the cost being defended against here is incurred by the attempt itself, not by whether it succeeds. Ticket creation gets a full minute since filing more than one new ticket within 60s isn't something a real user does; messages get a much shorter 10 seconds since a support thread is genuinely conversational and a longer cooldown would get in the way of a real back-and-forth — 10s is enough to stop a spam script firing requests back-to-back without a human ever noticing it's there.
 
 Messages are scoped per-ticket (not just per-user) so a cooldown on one thread doesn't block replying on another.
+
+---
+
+## AI (`/ai`)
+
+The AI chat ticket-intake path — a Gemini tool-calling assistant that turns a short conversation into the same ticket a `POST /tickets` call would produce. All routes require `Authorization: Bearer <accessToken>` and are **`CUSTOMER`-only**, same restriction as `POST /tickets` — an `AGENT`/`ADMIN` calling either route gets `403`. See [architecture.md#ai-chat-step-10](architecture.md#ai-chat-step-10) for the full design.
+
+### `POST /ai/chat`
+Sends the next turn of a chat conversation. Stateless: `messages` is the **entire** transcript so far, not just the newest message — the frontend resends it in full on every call, and the backend reads/writes nothing conversation-related between calls.
+
+**Body**
+```json
+{ "messages": [{ "role": "user | model", "content": "string (1-2000 chars)" }, ...] }
+```
+`messages` must have 1–40 entries. Each entry's `content` follows the same no-emoji rule as every other free-text field in this API.
+
+**Response** `200` — one of two shapes, depending on whether enough detail has been gathered yet:
+
+Still gathering detail, or asking a clarifying question:
+```json
+{ "type": "message", "content": "string" }
+```
+
+Enough detail was gathered and a ticket was filed:
+```json
+{
+  "type": "ticket_created",
+  "ticket": {
+    "id": "string",
+    "title": "string",
+    "description": "string",
+    "status": "OPEN",
+    "priority": "LOW | MEDIUM | HIGH | URGENT",
+    "createdAt": "ISO 8601 datetime",
+    "updatedAt": "ISO 8601 datetime",
+    "customerId": "string",
+    "agentId": null
+  }
+}
+```
+`ticket` is the same flat shape `POST /tickets` returns. On `ticket_created`, the whole conversation (every message in the request, plus the assistant's closing reply) is written as `Message` rows on the new ticket — `GET /tickets/:id/messages` on the returned `ticket.id` shows the original chat, indistinguishable in shape from a manually-posted message thread except for `isAiGenerated: true` on the assistant's turns.
+
+A malformed `create_ticket` call from the model (missing/invalid title, description, or priority) is treated as the model's mistake, not the caller's — it comes back as an ordinary `{ "type": "message", ... }` asking to clarify, **not** a `400`, so the frontend never has to special-case "the AI got it wrong" separately from "the AI is still asking questions."
+
+**Errors**: `400` on request validation failure (`messages` missing/empty/over 40 entries, or any entry's `role`/`content` invalid); `403` if the caller isn't a `CUSTOMER`; `429` `AI_DAILY_LIMIT_EXCEEDED` if either the per-user or per-IP daily cap has been reached — see [AI chat rate limiting](#ai-chat-rate-limiting) below; `503` `AI_UNAVAILABLE` if the Gemini API call itself fails (timeout, network error, non-2xx) or returns a response with neither text nor a function call.
+
+### `GET /ai/usage`
+Returns the caller's current usage against today's cap — read-only, doesn't itself count against the limit (no rate-limit guard on this route, unlike `POST /ai/chat`).
+
+**Response** `200`
+```json
+{ "used": 3, "limit": 25 }
+```
+`used` is always the caller's own real count for today. `limit` is **not** always the flat `AI_DAILY_LIMIT` (25) — it reflects the tighter of the per-user and per-IP caps (see [AI chat rate limiting](#ai-chat-rate-limiting) below), so it can come back lower than 25 if the caller's IP has less room left than their account does. The response never exposes the raw IP-side count or which of the two caps is actually binding.
+
+**Errors**: `403` if the caller isn't a `CUSTOMER`.
+
+### AI chat rate limiting
+
+`POST /ai/chat` is guarded by a **dual** Redis-backed cap (`AiDailyRateLimitGuard`) — both must have room, or the request is rejected:
+
+| Cap | Limit | Key |
+|---|---|---|
+| Per-user | 25 / day | `ratelimit:ai:{userId}:{date}` |
+| Per-IP | 100 / day | `ratelimit:ai-ip:{ipHash}:{date}` |
+
+```json
+{ "statusCode": 429, "error": "AI_DAILY_LIMIT_EXCEEDED", "message": "You've reached today's AI chat limit. Please try again tomorrow, or file a ticket manually.", "retryAfterSeconds": 41172 }
+```
+
+Both keys are day-scoped (reset at UTC midnight, same design as the AI usage keys documented in [architecture.md](architecture.md#ai-chat-step-10)) and incremented together on every request that passes, regardless of whether that turn ends in a clarifying question or an actual `create_ticket` — the Gemini call costs the same either way. The response deliberately doesn't say *which* of the two caps was hit, or quote a specific remaining-message number — a fresh account blocked purely by the IP cap could have sent 0 messages of its own that day, so naming a number would be misleading, and naming the cap would tell a multi-accounting abuser whether to make another account or just wait it out.
+
+The per-IP cap exists because the per-user cap alone doesn't stop someone from registering multiple accounts to add up several 25s — the same reasoning `POST /auth/login`'s email+IP keying already established for brute-force protection, just applied to daily quota instead of a lockout window. It's deliberately 4x looser than the per-user cap (100 vs. 25) so a genuinely shared IP — an office, a household, a school — with several real customers on it in one day never visibly hits it; it's sized to catch multi-accounting, not ordinary shared-network traffic.
 
 ---
 
@@ -392,3 +465,4 @@ Field-level constraints below are enforced server-side via `class-validator` dec
 | ticket close `reason` | `PATCH /tickets/:id/close` | 3–1000 chars, required; no emoji |
 | ticket reopen `reason` | `PATCH /tickets/:id/reopen` | 3–1000 chars, required; no emoji (separate constants from close's, deliberately decoupled even though currently identical) |
 | message `content` | `POST /tickets/:id/messages` | 1–5000 chars; no emoji |
+| AI chat `messages[].content` | `POST /ai/chat` | 1–2000 chars per message, 1–40 messages per request; no emoji |

@@ -5,11 +5,11 @@
 Two entry points, one shared contract:
 
 - **Manual form** — `POST /tickets` on the Next.js UI, validated with a Nest DTO, straight into `TicketsService.create()`.
-- **AI chat** — the user chats with the assistant (Gemini, tool/function calling). Once enough detail has been gathered, the model calls a `create_ticket` tool with a structured payload. The backend intercepts that call, runs it through the **same** DTO and validation rules as the manual path, and calls the same `TicketsService.create()`.
+- **AI chat** — the user chats with the assistant (Gemini, tool/function calling) through a site-wide floating widget, not a dedicated page. Once enough detail has been gathered, the model calls a `create_ticket` tool with a structured payload. `AiService.chat()` intercepts that call, runs it through the **same** `CreateTicketDto` and validation rules as the manual path, and calls the same `TicketsService.create()` — see [AI chat (Step 10)](#ai-chat-step-10) below for the full design.
 
 Neither path can produce a ticket the other one wouldn't allow — the AI is a second producer, not a second contract.
 
-The AI conversation itself is stored as `Message` rows on the resulting ticket (`type: AI`), so agents can see the original exchange without a separate conversation table.
+The AI conversation itself is stored as `Message` rows on the resulting ticket (`isAiGenerated: true` for the assistant's turns), so agents can see the original exchange without a separate conversation table.
 
 ## Backend module structure
 
@@ -18,6 +18,7 @@ backend/src/
   auth/
   users/
   tickets/
+  ai/
   redis/
   admin/
 
@@ -28,14 +29,13 @@ backend/prisma/
   seed-demo-data.ts
 ```
 
-- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`, built but not yet applied to any endpoint — no current route needs more than authentication), `guards/login-rate-limit.guard.ts` (Step 6), `login-rate-limit.util.ts`, `exceptions/login-rate-limited.exception.ts`, `strategies/jwt.strategy.ts`, `token.util.ts`.
+- `backend/src/auth/` — owns authentication and JWT-based identity handling for register/login/refresh/logout flows; main files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`, `dto/login.dto.ts`, `dto/register.dto.ts`, `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts` (role-based route restriction via `@Roles()`), `guards/login-rate-limit.guard.ts` (Step 6), `login-rate-limit.util.ts`, `exceptions/login-rate-limited.exception.ts`, `strategies/jwt.strategy.ts`, `token.util.ts`.
 - `backend/src/users/` — owns authenticated self-service account actions for the signed-in user; main files: `users.controller.ts`, `users.service.ts`, `users.module.ts`, `dto/change-email.dto.ts`, `dto/change-password.dto.ts`, `dto/delete-account.dto.ts`, `dto/update-name.dto.ts`, `types/authenticated-request.type.ts`.
 - `backend/src/tickets/` — manual ticket creation and self-service ticket management for customers, plus agent-facing assignment/status/queue routes (Step 9); main files: `tickets.controller.ts`, `tickets.service.ts`, `tickets.module.ts`, `dto/create-ticket.dto.ts`, `dto/find-tickets-query.dto.ts`, `dto/close-ticket.dto.ts`, `dto/reopen-ticket.dto.ts`, `dto/create-message.dto.ts`, `dto/assign-ticket.dto.ts`, `dto/update-ticket-status.dto.ts`, `dto/find-ticket-queue.dto.ts`, `guards/ticket-create-rate-limit.guard.ts`, `guards/ticket-message-rate-limit.guard.ts` (Step 6), `exceptions/ticket-create-rate-limited.exception.ts`, `exceptions/ticket-message-rate-limited.exception.ts`. See [Manual ticket creation](#manual-ticket-creation) and [Agent dashboard](#agent-dashboard-step-9) below for the design decisions behind it.
+- `backend/src/ai/` (Step 10) — Gemini tool-calling into `TicketsService.create()`, the AI chat path's own daily rate limiting, and its Redis-backed usage counters; main files: `ai.controller.ts`, `ai.service.ts`, `ai.module.ts`, `ai-usage-key.util.ts`, `dto/ai-chat.dto.ts`, `guards/ai-daily-rate-limit.guard.ts`, `exceptions/ai-daily-limit-exceeded.exception.ts`, `exceptions/gemini-unavailable.exception.ts`, `gemini/gemini.client.ts` (wraps `@google/genai`), `gemini/create-ticket.tool.ts` (the `create_ticket` function declaration). See [AI chat (Step 10)](#ai-chat-step-10) below for the design decisions behind it.
 - `backend/src/redis/` — global module wrapping a single `ioredis` client (`REDIS_URL`); main files: `redis.module.ts`, `redis.service.ts`. Consumed by `common/services/rate-limit.service.ts` (see [Rate limiting](#rate-limiting) below), not called directly by feature modules.
 - `backend/src/admin/` (Step 8.5) — operational actions with no user-facing login, gated by a shared secret instead of a JWT; main files: `admin.controller.ts`, `admin.service.ts`, `admin.module.ts`, `guards/demo-reset.guard.ts`. See [Demo reset](#demo-reset-step-85) below.
 - `backend/prisma/` — shared persistence wiring for Prisma access and database setup; main files: `prisma.service.ts`, `prisma.module.ts`, `schema.prisma`, `seed.ts`, `seed-demo-data.ts` (Step 8.5 — the insert logic extracted out of `seed.ts` so `AdminService.resetDemoData()` can reuse it; see [Demo reset](#demo-reset-step-85)).
-
-No `ai/` module is implemented yet, so AI-related responsibilities (Step 10) are still centralized rather than split into a dedicated Nest module.
 
 ## Agent dashboard (Step 9)
 
@@ -86,6 +86,34 @@ frontend/lib/
 - **Close/reopen reasons are single-snapshot fields, not a history table.** `closeReason`/`closedAt`/`closedBy` and `reopenReason`/`reopenedAt`/`reopenedBy` are plain nullable columns on `Ticket`, overwritten on each repeat close/reopen cycle rather than preserving every prior transition. A dedicated `TicketStatusChange` table is a possible future upgrade if that cycling turns out to matter in practice — not scheduled.
 - **Creation and messages carry an anti-spam cooldown, not just validation.** `TicketCreateRateLimitGuard` (60s) and `TicketMessageRateLimitGuard` (10s, per-ticket) sit in `tickets/guards/`, reusing the same `RateLimitService` primitives as login's rate limit — see [Rate limiting](#rate-limiting) below for why these needed a different counting shape than login's.
 
+## AI chat (Step 10)
+
+The second ticket-creation entry point from [Ticket creation flow](#ticket-creation-flow) above: a Gemini tool-calling assistant that turns a short conversation into the same `CreateTicketDto` the manual form produces.
+
+```text
+backend/src/ai/
+  ai.controller.ts       # POST /ai/chat, GET /ai/usage
+  ai.service.ts            # chat(), getUsage(), persistConversation()
+  ai-usage-key.util.ts    # buildAiUsageKey / buildAiIpUsageKey
+  dto/ai-chat.dto.ts
+  guards/ai-daily-rate-limit.guard.ts
+  exceptions/
+    ai-daily-limit-exceeded.exception.ts
+    gemini-unavailable.exception.ts
+  gemini/
+    gemini.client.ts        # wraps @google/genai, AbortController-based timeout
+    create-ticket.tool.ts    # the create_ticket FunctionDeclaration
+```
+
+- **Stateless backend — the frontend owns and resends the full transcript on every turn.** `POST /ai/chat`'s `AiChatRequestDto.messages` is the *entire* conversation so far, not just the newest message; `AiService.chat()` reads/writes nothing conversation-related between calls, and only ever touches persistence at all once `create_ticket` actually fires. A conversation that never results in a ticket leaves no trace — no abandoned-session cleanup job needed, which matters on Cloud Run's scale-to-zero (a stateful in-memory session wouldn't survive an instance recycling anyway). The transcript is capped (`AI_CHAT_MAX_TRANSCRIPT_MESSAGES` = 40 messages, `AI_CHAT_MESSAGE_MAX_LENGTH` = 2000 chars each, both in `@helpdesk/shared`) purely to bound Gemini token cost and abuse per request, not because a real intake conversation would ever need to run that long.
+- **The model calls a tool, the same DTO validates it, the same service creates the ticket.** `GeminiClient.generateTurn()` passes the transcript, a system instruction (`AI_CHAT_SYSTEM_INSTRUCTION`), and the `create_ticket` `FunctionDeclaration` to Gemini. If Gemini responds with a `create_ticket` call, `AiService.toCreateTicketDto()` normalizes it into a `CreateTicketDto` instance (only normalization: uppercasing `priority`, since the tool schema declares it as an uppercase enum but a model can't be relied on to always match casing) and runs it through `class-validator`'s `validate()` — the *exact* rules `POST /tickets` enforces, not a parallel set. A validation failure is treated as a model mistake, not a user error: rather than a hard HTTP error, the chat gets back a plain clarifying message ("wasn't able to file that ticket... could you clarify"), so the conversation can just continue. Only once validation passes does `TicketsService.create()` actually run.
+- **No tool call yet, or a response with neither text nor a function call, are two different things.** The former is Gemini still gathering detail (or asking a clarifying question) — a completely normal turn, returned to the frontend as `{ type: "message", content }`. The latter is treated as a failure (`GeminiUnavailableException`, `503 AI_UNAVAILABLE`), since a response with nothing useful to show isn't a valid "nothing to say" state — same exception the Gemini API call itself throws on timeout/network error/non-2xx.
+- **A successful `create_ticket` persists the whole conversation as `Message` rows on the new ticket** (`AiService.persistConversation()`), not just the final result — a customer's messages get `senderId` (their own id) and `isAiGenerated: false`; the model's replies get `senderId: null` and `isAiGenerated: true`, plus one more for Gemini's closing text (if any) alongside the `create_ticket` call itself. Writes happen sequentially inside a `$transaction`, not `createMany` — `GET /tickets/:id/messages` sorts by `createdAt`, and a batch insert risks several rows landing on the exact same timestamp and losing their relative order. The practical effect: an AI-created ticket's detail page shows the original chat that produced it, through the same `MessageThread` a manually-created ticket's replies go through — no separate "conversation" concept the frontend needs to know about.
+- **Dual rate limit: per-user *and* per-IP, both Redis-backed, both must have room.** `AiDailyRateLimitGuard` checks `AI_DAILY_LIMIT` (25/day/user, `ratelimit:ai:{userId}:{date}`) and `AI_DAILY_IP_LIMIT` (100/day/IP, `ratelimit:ai-ip:{ipHash}:{date}`) together, blocking on whichever is hit first and incrementing both on a request that passes — see [Rate limiting](#rate-limiting) below for the full reasoning (a per-user cap alone doesn't stop someone from just registering more accounts). Every turn counts against both regardless of outcome, same as ticket creation's cooldown, not just ones that end in `create_ticket` — a clarifying question costs the same Gemini call.
+- **`GET /ai/usage` is read-only and reflects the *tighter* of the two caps, not just the caller's own count.** `AiService.getUsage()` returns `{ used, limit }` where `used` is always the account's real count, but `limit` shrinks below 25 whenever the per-IP budget has less room left than the per-user one does — a fresh account on an already-heavily-used shared IP shows an accurate "X left" instead of a full 25 it could never actually reach. Deliberately doesn't expose the raw IP count, or which of the two caps is binding, for the same reason `AiDailyLimitExceededException`'s message doesn't name a specific number: a fresh account blocked purely by the IP cap could have 0 messages of its own sent that day, so quoting "25" would be actively misleading, and naming which cap tripped would hand a multi-accounting abuser a way to tell "make another account" apart from "just wait" — the frontend's `429` handling needed zero special-casing as a result.
+- **`GEMINI_MODEL` is a code constant, not an env var** (`gemini-3.5-flash-lite`, in `ai.constants.ts`) — unlike `GEMINI_API_KEY` (a real secret), there's no per-environment reason for local/staging/prod to run different models, and pinning it in code makes a model upgrade a reviewable diff instead of an env-var change that's easy to lose track of. `GeminiClient` uses an `AbortController` tied to a 15-second `setTimeout` for the actual request timeout — the SDK's own `httpOptions.timeout` was confirmed unreliable for `generateContent` during development, so this doesn't rely on it.
+- **Route-level restriction mirrors `POST /tickets`'s own.** `AiController` is `@Roles(Role.CUSTOMER)`, same as ticket creation — an agent/admin filing a ticket on someone else's behalf via chat isn't supported (same "possible future item, not scheduled" as `POST /tickets`'s own agent-assisted-creation note in [Agent dashboard](#agent-dashboard-step-9) above).
+
 ## Validation
 
 Field-level rules — length bounds, character sets, password strength, common-password rejection — live in `packages/shared/src/validation/`, not in the backend alone. Each rule is a plain function and/or a small set of named constants (`PASSWORD_MIN_LENGTH`, `NAME_MAX_LENGTH`, `TICKET_TITLE_MAX_LENGTH`, etc.) with no framework dependency, so either side of the monorepo can import them.
@@ -107,7 +135,8 @@ See [api-endpoints.md](api-endpoints.md#validation-rules) for the concrete per-f
 | Login (Step 6, done) | 5 attempts / 15 min | `ratelimit:login:{emailHash}:{ipHash}` | Failed attempts only — `AuthService.login` resets the counter on success, so an early typo doesn't cost the rest of the window once the password's right |
 | Ticket creation (Step 6, done) | 1 per 60 sec | `ratelimit:ticket-create:{userId}` | Every attempt, regardless of outcome |
 | Ticket messages (Step 6, done) | 1 per 10 sec, per ticket | `ratelimit:ticket-message:{userId}:{ticketId}` | Every attempt, regardless of outcome |
-| AI chat (Step 10) | 25 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
+| AI chat, per-user (Step 10, done) | 25 requests / day / user | `ratelimit:ai:{userId}:{date}` | Every request, regardless of outcome — the cost is incurred either way |
+| AI chat, per-IP (Step 10, done) | 100 requests / day / IP | `ratelimit:ai-ip:{ipHash}:{date}` | Same as above, checked and incremented alongside the per-user counter |
 | Registration (Step 7, done) | Cloudflare Turnstile CAPTCHA | n/a — one-shot verification, not a counter | — |
 
 Login is keyed on **email + IP together**, not either alone: IP-only would let one bad actor lock out everyone behind the same NAT, and email-only would let someone hammer a single account from many IPs without ever tripping a per-IP limit. `LoginRateLimitGuard` only *checks* the limit (via `RateLimitService.isLimited`) before the request reaches `AuthService`; it's `AuthService.login` that calls `increment`/`reset` once it actually knows whether the attempt succeeded, since a guard's `canActivate` runs before the route handler and has no visibility into that outcome.
@@ -115,6 +144,8 @@ Login is keyed on **email + IP together**, not either alone: IP-only would let o
 Both the guard and `AuthService` need to land on the identical Redis key for the same email+IP pair, so the key format itself lives in one place (`backend/src/auth/login-rate-limit.util.ts`) rather than two independently maintained string templates.
 
 **Getting a real client IP required a prerequisite fix.** The frontend's BFF layer talks to the backend server-to-server (`backendFetch`), which never carries the browser's own connection — without intervention, every login through the actual website would be keyed on the frontend server's own IP, not the visitor's. `main.ts` sets `trust proxy` to `1` (Cloud Run's Google Front End is the one trusted hop, and it appends the real client IP after receipt, so it can't be spoofed by a direct caller), and the frontend's `/api/auth/login` route handler explicitly forwards the incoming request's `x-forwarded-for` header on the backend call.
+
+**AI chat's per-IP cap exists because a per-user cap alone doesn't stop multi-accounting.** `AI_DAILY_LIMIT` (25/day/user) on its own only limits what *one account* can do — nothing stops someone from registering several accounts to add up several 25s. `AiDailyRateLimitGuard` checks both `AI_DAILY_LIMIT` and `AI_DAILY_IP_LIMIT` (100/day/IP, deliberately 4x looser than the per-user cap) and blocks on whichever is hit first, reusing `main.ts`'s already-trusted `request.ip` — no new IP-extraction infrastructure needed, this is the same real client IP login's rate limiting already established. The 4x headroom is deliberate: a genuinely shared IP (an office, a household, a school) can have several real customers on it in one day, and the per-IP cap shouldn't visibly affect them — it's sized to catch multi-accounting, not ordinary shared-network traffic. See [AI chat (Step 10)](#ai-chat-step-10) above for how this connects to `GET /ai/usage`'s response shape.
 
 **Ticket creation and messages are a different shape of problem — anti-spam, not brute-force protection.** The four seeded demo accounts' credentials are published in the README for the live demo, and registration is open with no CAPTCHA until Step 7, so either path is an easy way to flood the shared demo (or any account) with junk data. Because the cost here is incurred by the *attempt* itself, not by whether it succeeds, `TicketCreateRateLimitGuard` and `TicketMessageRateLimitGuard` are fully self-contained — they check and `increment` in the same pass, with no service-side success/failure bookkeeping needed (unlike login). Ticket creation gets a full 60-second cooldown, since filing more than one new ticket within a minute isn't something a real user does; messages get a much shorter 10 seconds, since a support thread is genuinely conversational and a longer cooldown would get in the way of a real back-and-forth. Messages are scoped per-ticket (not just per-user), so a cooldown on one thread doesn't block replying on another. See [api-endpoints.md#ticket-rate-limiting](api-endpoints.md#ticket-rate-limiting) for the exact error shape.
 
@@ -132,7 +163,7 @@ The four seeded demo accounts aren't blocked from creating, closing, reopening, 
 
 **Auth is a shared secret, not a login.** The only intended caller is a scheduled GitHub Actions job, which has no user session to present — so `DemoResetGuard` (`backend/src/admin/guards/demo-reset.guard.ts`) checks a `x-admin-reset-secret` header against the `ADMIN_RESET_SECRET` env var directly, with no `JwtAuthGuard`/`RolesGuard` involved at all. This is deliberate: it means the demo `ADMIN` account's own access token grants no access to this endpoint either — role has no bearing here, only possession of the secret does. The comparison uses `crypto.timingSafeEqual` (length-checked first, since it throws on mismatched lengths) rather than `===`, for the same constant-time reasoning as the token-hash comparisons in `auth/`.
 
-**Full wipe, not a diff against seed state.** Since demo accounts can generate real ticket/message data through normal use (and registration can create entirely new accounts), a partial reset that only touched "known seed rows" would leave that behind. `AdminService.resetDemoData()` deletes every row — `Message` → `Ticket` → `RefreshToken`/`AiUsage` → `User`, respecting FK direction — then re-seeds, all inside one `$transaction` so a caller never observes a half-empty database mid-reset.
+**Full wipe, not a diff against seed state.** Since demo accounts can generate real ticket/message data through normal use (and registration can create entirely new accounts), a partial reset that only touched "known seed rows" would leave that behind. `AdminService.resetDemoData()` deletes every row — `Message` → `Ticket` → `RefreshToken` → `User`, respecting FK direction — then re-seeds, all inside one `$transaction` so a caller never observes a half-empty database mid-reset. AI chat usage counters aren't part of this wipe at all — they're Redis-backed, day-scoped keys (see [AI chat (Step 10)](#ai-chat-step-10) above), not a Postgres table, so they aren't reset by this endpoint and simply expire on their own TTL.
 
 **One insert path, not two.** The demo-fixture insert logic that used to live inline in `seed.ts` (Step 4.1.9) was extracted into `backend/prisma/seed-demo-data.ts`'s `seedDemoData()`, typed against `Prisma.TransactionClient` — the narrower of the two shapes a plain `PrismaClient` also satisfies. `seed.ts` (a fresh `prisma db seed`) and `AdminService.resetDemoData()` (an interactive-transaction client) both call the same function, so neither can drift into inserting slightly different demo state.
 
@@ -287,6 +318,44 @@ frontend/components/ui/select/   # native <select>, styled to match Input/TextAr
 - **`Button` (`components/ui/`) always renders a native `<button>` with no slot/`asChild` support for wrapping a `Link`.** Anywhere a link needs to look like a button — "New ticket" on the list page, "Cancel" on the creation form — the relevant variant's Tailwind classes are hand-rolled directly onto a real `<a>`/`next/link` instead of nesting elements, so ⌘-click/middle-click/"open in new tab" keep working.
 - **`Message` only carries a `senderId`, not a name or role**, so `MessageThread` labels each entry "You" / "Support" / "AI Assistant" by comparing `senderId` against the viewer's own id (AI-generated messages are identified by `isAiGenerated`, not by sender) rather than resolving and displaying a real name.
 - **The creation form redirects straight to `/tickets/:id` on success**, once the detail page existed to redirect to (Step 5.7) — the interim `TicketCreatedNotice` shown inline from Step 5.5, back when there was nowhere to send someone, was removed at that point.
+
+## AI Assistant widget (frontend, Step 10.6)
+
+A site-wide floating chat widget, not a dedicated page — the frontend half of [AI chat (Step 10)](#ai-chat-step-10) above, styled after a Messenger-style persistent window rather than a full-page form.
+
+```text
+frontend/lib/context/
+  ai-assistant-context.tsx    # AiAssistantProvider / useAiAssistant()
+
+frontend/lib/queries/
+  use-ai-usage.ts               # GET /ai/usage
+
+frontend/lib/mutations/
+  use-ai-chat.ts                 # POST /ai/chat
+
+frontend/lib/validation/
+  ai-chat-schemas.ts            # zod, mirrors AiChatMessageDto's bounds
+
+frontend/components/layout/ai-assistant-widget/
+  ai-assistant-widget.tsx       # role gate, owns the transcript, mounted once
+  ai-assistant-widget.types.ts   # shared TranscriptEntry type
+  _components/
+    ai-assistant-launcher/       # collapsed bubble
+    ai-assistant-window/          # open state: header, transcript, composer
+    ai-assistant-message/         # one bubble (or the static greeting)
+    ai-assistant-composer/         # compact textarea + icon send button
+    ai-usage-indicator/            # "X of Y messages used today" badge
+```
+
+- **Mounted once, in `app/layout.tsx`, inside `Providers`.** Not a page's `_components/` — `AiAssistantWidget` sits alongside `Header`/`Footer` at the root layout level, so it renders on every route for the lifetime of the app shell rather than remounting (and losing its conversation) on every client-side navigation. Role-gated the same way `NewTicketView`/`TicketQueueView` already are — `useProfile().role !== "CUSTOMER"` renders nothing, mirroring `AiController`'s own `@Roles(Role.CUSTOMER)` restriction (a UX hide, not the real boundary; the backend still enforces it).
+- **Transcript state lives in `AiAssistantWidget`, not `AiAssistantWindow`.** `AiAssistantWindow` (the open state) fully unmounts every time the widget collapses to `AiAssistantLauncher` (the bubble) — so if the transcript were local `useState` inside the window, closing and reopening the widget would silently lose the conversation. Lifting `messages` one level up, to the component that stays mounted for the whole session, is what makes closing and reopening keep the conversation, the same way a real Messenger window would. `AiAssistantWindow` takes `messages`/`onMessagesChange` as props instead of owning the state itself.
+- **The transcript resets on a successful `ticket_created`, not just on an accidental close.** Persisting across close/reopen is meant to survive an interruption mid-conversation, not to carry a *finished* conversation forward — `AiAssistantWindow.handleSend`'s `ticket_created` branch explicitly clears `messages` (`onMessagesChange(() => [])`) in the same branch that closes the widget and redirects to the new ticket, so reopening afterward starts fresh rather than resuming at an already-answered thread.
+- **Nothing here is written to any storage.** The transcript is plain in-memory React state; it survives client-side navigation and the open/close toggle (both because the owning component stays mounted), but a hard page reload clears it, same as an abandoned manual-form draft. This was a deliberate choice, not an oversight — the backend is already stateless (Step 10.4), so there's no server-side session to restore even if the frontend tried to persist across reloads.
+- **A static greeting, never sent to the backend.** `AI_ASSISTANT_TEXT.GREETING` renders as the first bubble in an empty conversation via the same `AiAssistantMessage` component real turns use, but it's never added to the `messages` array — so it can never end up as part of the transcript `POST /ai/chat` receives. It's UI chrome, not a real "model" turn.
+- **`AiAssistantProvider` (`lib/context/ai-assistant-context.tsx`) holds `isOpen`/`open`/`close` in plain `useState`+`Context`**, not a URL param or a persisted store — ephemeral UI chrome state, the same category as `UserMenu`'s dropdown open/close. Defaults `isOpen: true`. This is what lets `TicketListView`'s and `NewTicketView`'s "Open AI Assistant" buttons reach into the widget without prop-drilling: those buttons and `AiAssistantWidget` are siblings under the same provider (mounted around the whole `<Header/><main/><Footer/><AiAssistantWidget/>` tree in `Providers`), not parent/child.
+- **`GET /ai/usage`'s response already reflects the tighter of the two backend caps** (see [AI chat (Step 10)](#ai-chat-step-10) above), so `AiUsageIndicator` needed no special-casing on the frontend at all — it just renders whatever `{ used, limit }` it's given, the same as it would if only a per-user cap existed.
+- **`AiAssistantComposer` is a compact single-row layout**, not `NewTicketForm`'s stacked `FormField` — a floating footer doesn't have room for a visible field label, so the label is `aria-label`-only, and Enter submits (Shift+Enter for a newline) rather than requiring a click on the send button.
+- **`cn()` in this codebase is plain `clsx`, not `tailwind-merge`** (`frontend/lib/utils.ts`) — a conflicting utility class passed as `className` doesn't get deduplicated, it just adds a second class the cascade resolves unpredictably. `AiUsageIndicator`/`AiAssistantWindow`'s use of `Badge`/`Alert` deliberately avoid passing size-override `className` props (e.g. `text-xs` onto `Alert`'s own `text-sm`) for exactly this reason, taking the components' default sizing instead of fighting it.
 
 ## Deployment
 

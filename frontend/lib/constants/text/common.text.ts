@@ -83,5 +83,5 @@ export const HOME_BUILD_PLAN_PHASES: Phase[] = [
   { label: "Cloudflare Turnstile captcha", status: "done" },
   { label: "CI/CD pipeline", status: "done" },
   { label: "Agent dashboard", status: "done" },
-  { label: "AI chat ticket path", status: "planned" },
+  { label: "AI chat ticket path", status: "done" },
 ];

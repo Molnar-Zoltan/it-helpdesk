@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.12.0] - 2026-08-15
+
+### Bug Fixes
+
+- **frontend:** Polish AI Assistant widget -- cursor, copy, persistence
+- **frontend:** Reset AI Assistant transcript after a ticket is created
+
+### Documentation
+
+- Step 10 docs pass -- README, api-endpoints, architecture, schema
+
+### Features
+
+- **ai:** Gemini tool-calling chat -> ticket creation (Steps 10.1, 10.3-10.5)
+- **frontend:** Add AI chat ticket intake UI (Step 10.6)
+- **frontend:** Redesign AI chat as a site-wide floating widget
+- **ai:** Add per-IP daily cap alongside the per-user AI chat limit
+
+### Refactor
+
+- **schema:** Drop AiUsage model, AI daily limit moves to Redis
+
 ## [0.11.0] - 2026-08-13
 
 ### Documentation

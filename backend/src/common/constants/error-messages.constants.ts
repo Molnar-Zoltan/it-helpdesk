@@ -46,3 +46,14 @@ export const AI_ERRORS = {
   GEMINI_UNAVAILABLE:
     'The AI assistant is temporarily unavailable. Please try again in a moment, or file a ticket manually.',
 } as const;
+
+export const ADMIN_ERRORS = {
+  // Deliberately followed by the real error's message in
+  // AdminService.resetDemoData (not just this static prefix alone) -- the
+  // only caller is the demo-reset GitHub Actions workflow, which just
+  // `cat`s the response body to its own log, so folding the actual cause
+  // in here means a failure is diagnosable from that log directly instead
+  // of requiring a trip to Cloud Run Logs.
+  DEMO_RESET_FAILED:
+    'Demo reset failed while wiping and reseeding the database:',
+} as const;

@@ -1,6 +1,6 @@
 {
   "name": "it-helpdesk",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "private": true,
   "description": "An IT helpdesk application where users can file tickets manually or by chatting with an AI assistant that extracts structured ticket details automatically. Built as a full-stack TypeScript monorepo to explore tool-calling AI integration, Redis-backed rate limiting, and role-based access control end to end.",
   "main": "index.js",

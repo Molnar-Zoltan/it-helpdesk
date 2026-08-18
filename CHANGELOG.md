@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.12.2] - 2026-08-18
+
+### Bug Fixes
+
+- **admin:** Raise demo-reset transaction timeout, batch seed inserts, add error detail
+
 ## [0.12.1] - 2026-08-15
 
 ### Bug Fixes

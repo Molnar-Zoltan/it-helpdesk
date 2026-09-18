@@ -1,10 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import type { Express } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // This backend only ever serves JSON, never HTML, so Helmet's
+  // Content-Security-Policy default (designed to constrain a page's own
+  // scripts/styles/frames) has no target to apply to here — that job
+  // belongs to the frontend's own CSP (see frontend/next.config.ts).
+  // Everything else Helmet sets by default still applies: X-Content-Type-
+  // Options (nosniff), X-Frame-Options (deny), a stripped X-Powered-By,
+  // Referrer-Policy, and Cross-Origin-* isolation headers.
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   // Trust exactly one hop: Cloud Run's Google Front End, which sits
   // directly in front of the container and appends the real connecting
@@ -31,7 +41,17 @@ async function bootstrap() {
     );
   }
   app.enableCors({ origin: frontendUrl, credentials: true });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      // Reject a request carrying fields no DTO declares, rather than
+      // silently stripping them (whitelist's own behavior). A field that
+      // doesn't belong is more likely a client bug or a probing attempt
+      // than something safe to just drop and continue.
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
 

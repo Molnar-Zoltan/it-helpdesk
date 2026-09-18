@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AccountMutationRateLimitGuard } from './guards/account-mutation-rate-limit.guard';
 import { UsersService } from './users.service';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -31,6 +32,7 @@ export class UsersController {
   }
 
   @Patch('me/password')
+  @UseGuards(AccountMutationRateLimitGuard)
   changePassword(
     @Req() req: AuthenticatedRequest,
     @Body() dto: ChangePasswordDto,
@@ -43,6 +45,7 @@ export class UsersController {
   }
 
   @Patch('me/email')
+  @UseGuards(AccountMutationRateLimitGuard)
   changeEmail(@Req() req: AuthenticatedRequest, @Body() dto: ChangeEmailDto) {
     return this.usersService.changeEmail(
       req.user.userId,
@@ -52,6 +55,7 @@ export class UsersController {
   }
 
   @Delete('me')
+  @UseGuards(AccountMutationRateLimitGuard)
   deleteAccount(
     @Req() req: AuthenticatedRequest,
     @Body() dto: DeleteAccountDto,

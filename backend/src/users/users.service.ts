@@ -13,17 +13,21 @@ import { UpdateNameDto } from './dto/update-name.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { PwnedPasswordService } from '../common/services/pwned-password.service';
+import { RateLimitService } from '../common/services/rate-limit.service';
 import { SessionRevocationService } from '../common/services/session-revocation.service';
 import { WeakPasswordException } from '../common/exceptions/weak-password.exception';
 import { USERS_ERRORS } from '../common/constants/error-messages.constants';
 import { USERS_SUCCESS } from '../common/constants/success-messages.constants';
 import { BCRYPT_SALT_ROUNDS } from '../common/constants/auth.constants';
+import { ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_SECONDS } from '../common/constants/rate-limit.constants';
+import { buildAccountMutationRateLimitKey } from './account-mutation-rate-limit.util';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
     private pwnedPasswords: PwnedPasswordService,
+    private rateLimit: RateLimitService,
     private sessionRevocation: SessionRevocationService,
   ) {}
 
@@ -108,9 +112,22 @@ export class UsersService {
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
     this.assertNotDemoAccount(userId);
 
+    const rateLimitKey = buildAccountMutationRateLimitKey(userId);
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!valid)
+    if (!valid) {
+      // AccountMutationRateLimitGuard only pre-checks; this is the one
+      // place that knows whether the guess was actually right, same split
+      // as AuthService.login (see RateLimitService's class comment).
+      await this.rateLimit.increment(
+        rateLimitKey,
+        ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_SECONDS,
+      );
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
+    }
+    // A correct password clears the slate — an earlier typo shouldn't
+    // count against the user for the rest of the window once they get it
+    // right.
+    await this.rateLimit.reset(rateLimitKey);
 
     const isSameAsCurrent = await bcrypt.compare(
       dto.newPassword,
@@ -169,9 +186,16 @@ export class UsersService {
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
     this.assertNotDemoAccount(userId);
 
+    const rateLimitKey = buildAccountMutationRateLimitKey(userId);
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!valid)
+    if (!valid) {
+      await this.rateLimit.increment(
+        rateLimitKey,
+        ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_SECONDS,
+      );
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
+    }
+    await this.rateLimit.reset(rateLimitKey);
 
     // Checked before the uniqueness lookup below: without this, resubmitting
     // your own current email would find yourself in that lookup and surface
@@ -218,9 +242,18 @@ export class UsersService {
     if (!user) throw new NotFoundException(USERS_ERRORS.USER_NOT_FOUND);
     this.assertNotDemoAccount(userId);
 
+    const rateLimitKey = buildAccountMutationRateLimitKey(userId);
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid)
+    if (!valid) {
+      await this.rateLimit.increment(
+        rateLimitKey,
+        ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_SECONDS,
+      );
       throw new UnauthorizedException(USERS_ERRORS.CURRENT_PASSWORD_INCORRECT);
+    }
+    // No reset() here on the success path — the account (and thus the key's
+    // relevance) is deleted a few lines down anyway, and a Redis key with a
+    // 15-minute TTL left keyed to an already-deleted userId is harmless.
 
     // Unlike changePassword/changeEmail, there's no session to exempt —
     // the account itself is going away, so every session (including the

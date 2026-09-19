@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here, generated from
 conventional commit history via [git-cliff](https://git-cliff.org).
+## [0.13.0] - 2026-09-19
+
+### Features
+
+- **shared:** Add account mutation rate limit error code
+- **backend:** Add helmet security headers and reject unknown fields
+- **users:** Rate limit account mutation endpoints
+- **frontend:** Add content security policy and security headers
+
 ## [0.12.2] - 2026-08-18
 
 ### Bug Fixes

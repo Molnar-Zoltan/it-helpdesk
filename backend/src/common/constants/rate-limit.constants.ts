@@ -12,6 +12,25 @@ export const LOGIN_RATE_LIMIT_WINDOW_SECONDS =
   Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? 15) * 60;
 
 /**
+ * Brute-force protection for the account-mutation endpoints that require
+ * `currentPassword` re-verification: PATCH /users/me/password, PATCH
+ * /users/me/email, DELETE /users/me. Without this, a stolen/leaked access
+ * token would let an attacker guess `currentPassword` with unlimited
+ * attempts, since JwtAuthGuard alone only proves possession of the token,
+ * not the password. Keyed on userId alone (see
+ * users/account-mutation-rate-limit.util.ts) and shared across all three
+ * endpoints, since they're all the same underlying attack: guessing one
+ * user's current password. Same 5/15min defaults as login, for the same
+ * reason — an attacker gets a handful of guesses per window either way.
+ */
+export const ACCOUNT_MUTATION_RATE_LIMIT_ATTEMPTS = Number(
+  process.env.ACCOUNT_MUTATION_RATE_LIMIT_ATTEMPTS ?? 5,
+);
+
+export const ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_SECONDS =
+  Number(process.env.ACCOUNT_MUTATION_RATE_LIMIT_WINDOW_MINUTES ?? 15) * 60;
+
+/**
  * Anti-spam cooldowns on ticket creation and messages — not brute-force
  * protection like login's limit above, but protection against DB-growth
  * abuse. The four seeded demo accounts' credentials are published in the
